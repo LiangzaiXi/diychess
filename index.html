@@ -1967,7 +1967,7 @@
             document.getElementById(`btn-mode-${mode}`).classList.add('active');
             ['play', 'layout', 'rules'].forEach(m => document.getElementById(`panel-${m}`).style.display = mode === m ? 'block' : 'none');
             const editBtn = document.getElementById('menu-edit-btn');
-            if (editBtn) editBtn.style.display = mode === 'play' ? 'none' : 'inline-block';
+            if (editBtn) editBtn.style.display = mode === 'layout' ? 'inline-block' : 'none';
             selectedId = null; renderPieces(); renderDots();
             if (mode === 'rules') setTimeout(centerGeneEditor, 50);
         }
