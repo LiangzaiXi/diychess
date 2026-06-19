@@ -919,6 +919,8 @@
     </div>
     <div class="menu-panel" id="menu-panel">
         <button class="close-btn" onclick="toggleMenu(false)">隐藏 ✖</button>
+        <button class="close-btn" style="background:#00acc1;margin-right:5px;" onclick="toggleMenu(false,true)">编辑
+            📐</button>
         <h2 style="margin-top:0;">⚡ 创造者面板</h2>
         <div class="mode-tabs">
             <button id="btn-mode-play" class="tool-btn active" onclick="setMode('play')">🎮 战斗</button>
@@ -1167,14 +1169,14 @@
             setTimeout(() => bWrapper.style.transition = 'none', 300);
         }
         function init() { COLS = parseInt(document.getElementById('board-cols').value) || 9; ROWS = parseInt(document.getElementById('board-rows').value) || 10; updateBoardSize(COLS, ROWS, true); resetBoard(); populateRuleSelector(); renderLayoutButtons(); setupEditorListeners(); }
-        function toggleMenu(forceShow) {
+        function toggleMenu(forceShow, keepMode) {
             const panel = document.getElementById('menu-panel');
             if (typeof forceShow === 'boolean') panel.style.display = forceShow ? 'block' : 'none';
             else panel.style.display = (panel.style.display === 'none' || panel.style.display === '') ? 'block' : 'none';
             if (panel.style.display === 'block') {
                 setTimeout(centerGeneEditor, 100);
             } else {
-                setMode('play');
+                if (!keepMode) setMode('play');
             }
         }
         function updateBoardSize(c, r, skipRuleLoad = false) {
