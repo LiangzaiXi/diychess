@@ -919,8 +919,8 @@
     </div>
     <div class="menu-panel" id="menu-panel">
         <button class="close-btn" onclick="toggleMenu(false)">隐藏 ✖</button>
-        <button class="close-btn" style="background:#00acc1;margin-right:5px;" onclick="toggleMenu(false,true)">编辑
-            📐</button>
+        <button id="menu-edit-btn" class="close-btn" style="background:#00acc1;margin-right:5px;display:none;"
+            onclick="toggleMenu(false,true)">编辑 📐</button>
         <h2 style="margin-top:0;">⚡ 创造者面板</h2>
         <div class="mode-tabs">
             <button id="btn-mode-play" class="tool-btn active" onclick="setMode('play')">🎮 战斗</button>
@@ -1966,6 +1966,8 @@
             document.querySelectorAll('.mode-tabs button').forEach(b => b.classList.remove('active'));
             document.getElementById(`btn-mode-${mode}`).classList.add('active');
             ['play', 'layout', 'rules'].forEach(m => document.getElementById(`panel-${m}`).style.display = mode === m ? 'block' : 'none');
+            const editBtn = document.getElementById('menu-edit-btn');
+            if (editBtn) editBtn.style.display = mode === 'play' ? 'none' : 'inline-block';
             selectedId = null; renderPieces(); renderDots();
             if (mode === 'rules') setTimeout(centerGeneEditor, 50);
         }
