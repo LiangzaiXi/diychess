@@ -1742,7 +1742,7 @@
         }
         async function makeAIMove() {
             if (currentTurn !== 'black') return;
-            await new Promise(r => setTimeout(r, 50));
+            await new Promise(r => setTimeout(r, 210));
             if (currentTurn !== 'black') return;
             let aiPieces = activePieces.filter(p => p.color === 'black');
             let allMoves = [];
