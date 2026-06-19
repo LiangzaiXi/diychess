@@ -1770,7 +1770,7 @@
                 if (currentTurn !== 'black') return;
                 let simState = applyVirtualMove(activePieces, m);
                 if (!simState.find(k => k.color === 'black' && pieceRules[k.type] && pieceRules[k.type].isKing)) continue;
-                let score = minimax(simState, 6, -Infinity, Infinity, false) + (Math.random() * 0.2);
+                let score = minimax(simState, 4, -Infinity, Infinity, false) + (Math.random() * 0.2);
                 if (score > bestScore) { bestScore = score; bestMove = m; }
                 moveCount++;
                 if (moveCount % 15 === 0) await new Promise(r => setTimeout(r, 0));
