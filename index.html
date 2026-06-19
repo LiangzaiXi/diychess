@@ -97,11 +97,24 @@
             width: 340px;
             max-width: 90vw;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
-            max-height: calc(100vh - 90px);
+            max-height: calc(100dvh - 90px);
             overflow-y: auto;
             border: 1px solid #555;
             display: none;
             animation: slideDown 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        @media(max-width:480px) {
+            .menu-panel {
+                top: 60px;
+                right: 5vw;
+                left: 5vw;
+                width: 90vw;
+                max-width: none;
+                padding: 12px;
+                max-height: calc(100dvh - 75px);
+                border-radius: 8px;
+            }
         }
 
         @keyframes slideDown {
@@ -1588,9 +1601,7 @@
             for (let k in pieceRules) {
                 pieceValCache[k] = getPieceValue(k);
                 if (pieceRules[k].promote && pieceRules[k].promote.enabled) {
-                    let targets = (pieceRules[k].promote.targets && pieceRules[k].promote.targets.length > 0)
-                        ? pieceRules[k].promote.targets
-                        : Object.keys(pieceRules).filter(t => pieceRules[t].isKing === pieceRules[k].isKing && t !== k);
+                    let targets = (pieceRules[k].promote.targets && pieceRules[k].promote.targets.length > 0) ? pieceRules[k].promote.targets : Object.keys(pieceRules).filter(t => pieceRules[t].isKing === pieceRules[k].isKing && t !== k);
                     let maxV = 0;
                     targets.forEach(t => {
                         if (pieceValCache[t] === undefined) pieceValCache[t] = getPieceValue(t);
@@ -1603,8 +1614,6 @@
                 let rule = pieceRules[p.type];
                 if (!rule) continue;
                 let v = pieceValCache[p.type];
-                let mobilityMoves = getBaseValidMoves(p, testPieces);
-                let mobilityScore = mobilityMoves.length * 2.5;
                 let advance = p.color === 'black' ? p.y : (ROWS - 1 - p.y);
                 let posBonus = (10 - Math.abs(p.x - centerX)) * 1.5 + advance * 2;
                 let promoBonus = 0;
@@ -1615,12 +1624,10 @@
                     let targetMaxVal = maxPromoValCache[p.type] || v;
                     if (targetMaxVal > v) {
                         let dangerDistance = 4;
-                        if (distToPromo <= dangerDistance) {
-                            promoBonus = (targetMaxVal - v) * (1 - distToPromo / (dangerDistance + 1));
-                        }
+                        if (distToPromo <= dangerDistance) promoBonus = (targetMaxVal - v) * (1 - distToPromo / (dangerDistance + 1));
                     }
                 }
-                let total = v + mobilityScore + posBonus + promoBonus;
+                let total = v + posBonus + promoBonus;
                 if (p.color === 'black') score += total; else score -= total;
             }
             return score;
@@ -1727,6 +1734,7 @@
             }
         }
         async function makeAIMove() {
+            if (currentTurn !== 'black') return;
             let aiPieces = activePieces.filter(p => p.color === 'black');
             let allMoves = [];
             for (let p of aiPieces) {
@@ -1746,17 +1754,20 @@
                 return;
             }
             allMoves.sort((a, b) => b.captureValue - a.captureValue);
-            let bestScore = -Infinity; let bestMove = null;
+            let bestScore = -Infinity; let bestMove = null; let moveCount = 0;
             for (let m of allMoves) {
+                if (currentTurn !== 'black') return;
                 let simState = applyVirtualMove(activePieces, m);
                 if (!simState.find(k => k.color === 'black' && pieceRules[k.type] && pieceRules[k.type].isKing)) continue;
                 let score = minimax(simState, 3, -Infinity, Infinity, false) + (Math.random() * 0.2);
                 if (score > bestScore) { bestScore = score; bestMove = m; }
-                await new Promise(r => setTimeout(r, 0));
+                moveCount++;
+                if (moveCount % 15 === 0) await new Promise(r => setTimeout(r, 0));
             }
+            if (currentTurn !== 'black') return;
             if (!bestMove) bestMove = allMoves[0];
             let bp = activePieces.find(p => p.id === bestMove.id);
-            if (bp) executeMove(bp, bestMove.tx, bestMove.ty, bestMove.comboVictims);
+            if (bp && bp.color === 'black') executeMove(bp, bestMove.tx, bestMove.ty, bestMove.comboVictims);
         }
         function applyVirtualMove(testPieces, mDesc) { let ns = testPieces.map(p => ({ ...p })); let piece = ns.find(p => p.id === mDesc.id); if (!piece) return ns; piece.x = mDesc.tx; piece.y = mDesc.ty; return ns.filter(p => !mDesc.victims.includes(p.id)); }
         function exportCode() {
