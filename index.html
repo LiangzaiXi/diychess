@@ -1,0 +1,2114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>自定义象棋</title>
+    <style>
+        :root {
+            --cell-size: min(9.5vw, 8vh);
+            --piece-size: calc(var(--cell-size) * 0.85 + 4px);
+            --line-color: #5c3a18;
+            --board-bg: #eebb77;
+            --cols: 9;
+            --rows: 10;
+            --gene-cell: 38px;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: "KaiTi", "楷体", serif;
+            background: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            touch-action: none;
+        }
+
+        .menu-btn {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            z-index: 300;
+            background: #d32f2f;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        .menu-btn:active {
+            background: #f44336;
+            transform: scale(0.95);
+        }
+
+        .reset-view-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            background: #444;
+            color: white;
+            border: 1px solid #777;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            font-weight: bold;
+        }
+
+        .lock-btn {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            background: #444;
+            color: white;
+            border: 1px solid #777;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            font-weight: bold;
+        }
+
+        .menu-panel {
+            position: fixed;
+            top: 65px;
+            right: 15px;
+            z-index: 200;
+            background: rgba(42, 42, 42, 0.95);
+            backdrop-filter: blur(10px);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            width: 340px;
+            max-width: 90vw;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+            max-height: calc(100vh - 90px);
+            overflow-y: auto;
+            border: 1px solid #555;
+            display: none;
+            animation: slideDown 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-15px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .close-btn {
+            float: right;
+            background: #555;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        h2,
+        h3 {
+            color: #ffb74d;
+            border-bottom: 1px solid #555;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+
+        button.tool-btn {
+            cursor: pointer;
+            padding: 8px 12px;
+            margin: 4px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: #444;
+            color: white;
+            font-size: 15px;
+            transition: 0.1s;
+            font-family: inherit;
+        }
+
+        button.tool-btn:active {
+            transform: scale(0.95);
+        }
+
+        button.tool-btn.active {
+            background: #ff9800;
+            color: #000;
+            font-weight: bold;
+            border-color: #ff9800;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            padding: 6px;
+            text-align: center;
+            border-radius: 4px;
+            border: 1px solid #777;
+            background: #333;
+            color: white;
+            font-size: 16px;
+        }
+
+        .board-outer-wrapper {
+            background: var(--board-bg);
+            padding: calc(var(--cell-size) * 0.4);
+            border-radius: 8px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.9);
+            position: relative;
+            transform-origin: center center;
+            will-change: transform;
+        }
+
+        .board-inner-container {
+            position: relative;
+            width: calc(var(--cell-size) * var(--cols));
+            height: calc(var(--cell-size) * var(--rows));
+            border: 2px solid var(--line-color);
+            box-sizing: content-box;
+            transition: width 0.3s, height 0.3s;
+        }
+
+        .grid-bg {
+            display: grid;
+            grid-template-columns: repeat(var(--cols), var(--cell-size));
+            grid-template-rows: repeat(var(--rows), var(--cell-size));
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .cell {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .cell::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: var(--line-color);
+            z-index: 0;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .cell::after {
+            content: '';
+            position: absolute;
+            height: 100%;
+            width: 2px;
+            background: var(--line-color);
+            z-index: 0;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .cell[data-y="0"]::after {
+            top: 50%;
+            height: 50%;
+            transform: translate(-50%, 0);
+        }
+
+        .cell[data-y="last"]::after {
+            top: 0;
+            height: 50%;
+            transform: translate(-50%, 0);
+        }
+
+        .cell[data-x="0"]::before {
+            left: 50%;
+            width: 50%;
+            transform: translate(0, -50%);
+        }
+
+        .cell[data-x="last"]::before {
+            left: 0;
+            width: 50%;
+            transform: translate(0, -50%);
+        }
+
+        .piece {
+            position: absolute;
+            width: var(--piece-size);
+            height: var(--piece-size);
+            top: calc((var(--cell-size) - var(--piece-size)) / 2);
+            left: calc((var(--cell-size) - var(--piece-size)) / 2);
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #fff3e0, #d7ccc8);
+            border: 2px solid #5d4037;
+            box-shadow: 2px 4px 6px rgba(0, 0, 0, 0.5), inset 0 0 8px rgba(0, 0, 0, 0.3);
+            box-sizing: border-box;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: calc(var(--piece-size) * 0.55);
+            font-weight: bold;
+            line-height: 1.1;
+            text-align: center;
+            padding-bottom: 2px;
+            pointer-events: auto;
+            transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.2s;
+            z-index: 10;
+        }
+
+        .piece.two-char {
+            font-size: calc(var(--piece-size) * 0.38);
+            letter-spacing: -1px;
+        }
+
+        .piece.multi-char {
+            font-size: calc(var(--piece-size) * 0.28);
+            letter-spacing: -1px;
+            line-height: 1;
+        }
+
+        .piece.red {
+            color: #c62828;
+            border-color: #8e0000;
+            text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.5);
+        }
+
+        .piece.black {
+            color: #111;
+            border-color: #000;
+            text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        .piece.selected {
+            box-shadow: 0 0 20px 5px rgba(255, 235, 59, 0.8);
+            border-color: #fbc02d;
+            z-index: 20;
+        }
+
+        .dot {
+            position: absolute;
+            width: calc(var(--cell-size) * 0.25);
+            height: calc(var(--cell-size) * 0.25);
+            top: calc(var(--cell-size) * 0.375);
+            left: calc(var(--cell-size) * 0.375);
+            border-radius: 50%;
+            z-index: 5;
+            pointer-events: none;
+            opacity: 0.8;
+        }
+
+        .dot.step {
+            background: #4caf50;
+            box-shadow: 0 0 8px #4caf50;
+        }
+
+        .dot.slide {
+            background: #2196f3;
+            box-shadow: 0 0 8px #2196f3;
+        }
+
+        .dot.capture {
+            background: #f44336;
+            box-shadow: 0 0 12px #f44336;
+            width: calc(var(--cell-size) * 0.5);
+            height: calc(var(--cell-size) * 0.5);
+            top: calc(var(--cell-size) * 0.25);
+            left: calc(var(--cell-size) * 0.25);
+        }
+
+        @keyframes shakeBoard {
+            0% {
+                transform: translate(2px, 2px);
+            }
+
+            25% {
+                transform: translate(-4px, -3px);
+            }
+
+            50% {
+                transform: translate(3px, 4px);
+            }
+
+            75% {
+                transform: translate(-3px, 2px);
+            }
+
+            100% {
+                transform: translate(0, 0);
+            }
+        }
+
+        .shake {
+            animation: shakeBoard 0.25s both;
+        }
+
+        .hit-ripple {
+            position: absolute;
+            width: var(--cell-size);
+            height: var(--cell-size);
+            top: 0;
+            left: 0;
+            border-radius: 50%;
+            border: 3px solid red;
+            pointer-events: none;
+            animation: rippleOut 0.4s ease-out forwards;
+            z-index: 15;
+        }
+
+        @keyframes rippleOut {
+            0% {
+                transform: scale(0.5);
+                opacity: 1;
+                border-width: 10px;
+            }
+
+            100% {
+                transform: scale(2);
+                opacity: 0;
+                border-width: 1px;
+            }
+        }
+
+        .slice-half {
+            position: absolute;
+            width: var(--piece-size);
+            height: var(--piece-size);
+            top: calc((var(--cell-size) - var(--piece-size)) / 2);
+            left: calc((var(--cell-size) - var(--piece-size)) / 2);
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #fff3e0, #d7ccc8);
+            border: 2px solid #5d4037;
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            pointer-events: none;
+        }
+
+        .slice-half.two-char {
+            font-size: calc(var(--piece-size) * 0.38);
+        }
+
+        .slice-half.multi-char {
+            font-size: calc(var(--piece-size) * 0.28);
+        }
+
+        .slice-half.red {
+            color: #c62828;
+            border-color: #8e0000;
+        }
+
+        .slice-half.black {
+            color: #111;
+            border-color: #000;
+        }
+
+        .slice-top {
+            clip-path: polygon(-50% -50%, 150% -50%, -50% 150%);
+            animation: sliceTopAnim 0.5s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+        }
+
+        .slice-bot {
+            clip-path: polygon(150% -50%, 150% 150%, -50% 150%);
+            animation: sliceBotAnim 0.5s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+        }
+
+        @keyframes sliceTopAnim {
+            0% {
+                transform: translate(0, 0) rotate(0deg);
+                opacity: 1;
+                filter: brightness(1.5);
+            }
+
+            100% {
+                transform: translate(-30px, -30px) rotate(-25deg);
+                opacity: 0;
+                filter: brightness(0.5);
+            }
+        }
+
+        @keyframes sliceBotAnim {
+            0% {
+                transform: translate(0, 0) rotate(0deg);
+                opacity: 1;
+                filter: brightness(1.5);
+            }
+
+            100% {
+                transform: translate(30px, 30px) rotate(25deg);
+                opacity: 0;
+                filter: brightness(0.5);
+            }
+        }
+
+        .slash-line {
+            position: absolute;
+            width: calc(var(--cell-size) * 1.8);
+            height: 4px;
+            background: #fff;
+            top: 50%;
+            left: 50%;
+            box-shadow: 0 0 10px 4px rgba(255, 255, 255, 0.9), 0 0 20px 8px rgba(255, 50, 50, 0.8);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 25;
+            transform-origin: center;
+            animation: slashStrike 0.3s ease-out forwards;
+        }
+
+        @keyframes slashStrike {
+            0% {
+                transform: translate(-50%, -50%) rotate(-45deg) scaleX(0);
+                opacity: 1;
+            }
+
+            40% {
+                transform: translate(-50%, -50%) rotate(-45deg) scaleX(1);
+                opacity: 1;
+                filter: brightness(1.5);
+            }
+
+            100% {
+                transform: translate(-50%, -50%) rotate(-45deg) scaleX(1.3);
+                opacity: 0;
+            }
+        }
+
+        .move-editor-wrapper {
+            width: 100%;
+            height: 260px;
+            overflow: auto;
+            border: 1px solid #555;
+            border-radius: 6px;
+            background: #1a1a1a;
+            position: relative;
+            margin-bottom: 5px;
+            scrollbar-width: thin;
+            scrollbar-color: #ff9800 #333;
+        }
+
+        .move-editor-grid {
+            display: grid;
+            gap: 2px;
+            background: #444;
+            padding: 2px;
+            width: max-content;
+            margin: auto;
+        }
+
+        .m-cell {
+            background: #ccc;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: calc(var(--gene-cell) * 0.45);
+            color: #333;
+            width: var(--gene-cell);
+            height: var(--gene-cell);
+            text-align: center;
+            line-height: 1;
+        }
+
+        .m-cell.center {
+            background: #111;
+            color: white;
+            font-weight: bold;
+            border: 2px solid #ffeb3b;
+            z-index: 2;
+        }
+
+        .m-cell.two-char {
+            font-size: calc(var(--gene-cell) * 0.3);
+        }
+
+        .m-cell.step {
+            background: #4caf50;
+            color: white;
+        }
+
+        .m-cell.slide {
+            background: #2196f3;
+            color: white;
+        }
+
+        .mode-tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #555;
+        }
+
+        .mode-tabs button {
+            flex: 1;
+            border-radius: 8px 8px 0 0;
+            margin: 0;
+            background: transparent;
+            font-size: 16px;
+            padding: 12px;
+        }
+
+        .mode-tabs button.active {
+            background: #333;
+            color: #ffb74d;
+            border-bottom: 3px solid #ffb74d;
+        }
+
+        #game-status-float {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            pointer-events: none;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+            z-index: 50;
+            transition: color 0.3s;
+        }
+
+        .check-warning {
+            color: #ffeb3b !important;
+            animation: blink 0.5s infinite alternate;
+        }
+
+        @keyframes blink {
+            from {
+                text-shadow: 0 0 10px red;
+                transform: scale(1);
+                transform-origin: left center;
+            }
+
+            to {
+                text-shadow: 0 0 20px red;
+                transform: scale(1.1);
+                transform-origin: left center;
+            }
+        }
+
+        .is-panning {
+            cursor: grabbing !important;
+        }
+
+        #promo-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1000;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .promo-title {
+            color: #ffb74d;
+            font-size: 28px;
+            font-weight: bold;
+            text-shadow: 0 4px 10px rgba(0, 0, 0, 0.8);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .promo-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            max-width: 90vw;
+        }
+
+        .promo-opt {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #fff3e0, #d7ccc8);
+            border: 4px solid #fbc02d;
+            box-shadow: 0 0 20px rgba(251, 192, 45, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            color: #c62828;
+            text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.5);
+            padding-bottom: 2px;
+        }
+
+        .promo-opt:active {
+            transform: scale(0.9);
+        }
+
+        .promo-opt.black-piece {
+            color: #111;
+            text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.3);
+            border-color: #555;
+            box-shadow: 0 0 20px rgba(85, 85, 85, 0.6);
+        }
+
+        .promo-opt.two-char {
+            font-size: 28px;
+        }
+
+        .promo-opt.multi-char {
+            font-size: 20px;
+        }
+
+        #eval-bar-container {
+            position: fixed;
+            left: 20px;
+            top: 60px;
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            background: #555;
+            border: 2px solid #ccc;
+            z-index: 50;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.8);
+            transition: opacity 0.3s, background-color 0.3s, border-color 0.3s;
+        }
+
+        #eval-score-text {
+            font-weight: bold;
+            font-size: 15px;
+            color: #fff;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+        }
+
+        .quality-badge {
+            position: absolute;
+            width: calc(var(--piece-size) * 0.35);
+            height: calc(var(--piece-size) * 0.35);
+            top: calc(var(--piece-size) * -0.08);
+            right: calc(var(--piece-size) * -0.08);
+            font-size: calc(var(--piece-size) * 0.22);
+            font-weight: bold;
+            font-family: sans-serif;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+            z-index: 10;
+            border: calc(var(--piece-size) * 0.03) solid white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            color: #ffffff;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+            transform: scale(0);
+            animation: badgePop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes badgePop {
+            0% {
+                transform: scale(0);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .badge-blunder {
+            background: #f44336;
+        }
+
+        .badge-mistake {
+            background: #ff9800;
+        }
+
+        .badge-good {
+            background: #4caf50;
+        }
+
+        .badge-brilliant {
+            background: #00bcd4;
+            box-shadow: 0 0 10px #00bcd4;
+        }
+
+        .piece,
+        .slice-half,
+        .promo-opt,
+        .dot {
+            box-sizing: border-box;
+        }
+
+        #game-over-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 2000;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(5px);
+            animation: fadeIn 0.3s;
+        }
+
+        .go-content {
+            background: rgba(30, 30, 30, 0.95);
+            padding: 35px 40px;
+            border-radius: 16px;
+            border: 2px solid #555;
+            text-align: center;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.8);
+            transform: scale(0.8);
+            animation: popUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            position: relative;
+            z-index: 2001;
+        }
+
+        .go-title {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 25px;
+        }
+
+        .win-red {
+            color: #ff5252;
+            text-shadow: 0 0 15px rgba(255, 82, 82, 0.6);
+            border-color: #ff5252;
+        }
+
+        .win-black {
+            color: #fff;
+            text-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+            border-color: #aaa;
+        }
+
+        .go-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        #confetti-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 2000;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            opacity: 0;
+            animation: burst 1s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+        }
+
+        @keyframes popUp {
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        @keyframes fadeIn {
+            0% {
+                opacity: 0;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        @keyframes burst {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translate(var(--tx), var(--ty)) scale(0);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <button class="menu-btn" onclick="toggleMenu()">⚙️ 控制中心</button>
+    <button class="reset-view-btn" onclick="resetView()">🎯 视角回正</button>
+    <button id="lock-btn" class="lock-btn" onclick="toggleBoardLock()" style="background: #d32f2f;">🔒 视角已锁</button>
+    <div id="game-status-float">🔴 红方回合</div>
+    <div class="board-outer-wrapper" id="board-container">
+        <div class="board-inner-container" id="board-inner">
+            <div id="grid-bg" class="grid-bg"></div>
+            <div id="piece-layer" class="layer"></div>
+            <div id="dot-layer" class="layer"></div>
+        </div>
+    </div>
+    <div id="promo-overlay">
+        <div class="promo-title">🌟 触发升变！请选择进化路线</div>
+        <div class="promo-grid" id="promo-options"></div>
+    </div>
+    <div id="game-over-overlay">
+        <div id="confetti-container"></div>
+        <div class="go-content" id="go-modal">
+            <div class="go-title" id="go-title">🎉 红方胜利！</div>
+            <div class="go-buttons">
+                <button class="tool-btn" onclick="hideGameOver()" style="background:#555; font-size:16px;">隐藏看盘</button>
+                <button class="tool-btn" onclick="hideGameOver(); undoMove();"
+                    style="background:#f9a825; color:#000; font-size:16px;">悔棋重来</button>
+                <button class="tool-btn" onclick="hideGameOver(); resetBoard();"
+                    style="background:#d32f2f; font-size:16px;">再战一局</button>
+            </div>
+        </div>
+    </div>
+    <div class="menu-panel" id="menu-panel">
+        <button class="close-btn" onclick="toggleMenu(false)">隐藏 ✖</button>
+        <h2 style="margin-top:0;">⚡ 创造者面板</h2>
+        <div class="mode-tabs">
+            <button id="btn-mode-play" class="tool-btn active" onclick="setMode('play')">🎮 战斗</button>
+            <button id="btn-mode-layout" class="tool-btn" onclick="setMode('layout')">📐 摆阵</button>
+            <button id="btn-mode-rules" class="tool-btn" onclick="setMode('rules')">🧬 基因</button>
+        </div>
+        <div id="panel-play">
+            <div
+                style="background: rgba(30,30,30,0.8); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #444; display:flex; justify-content:space-between; align-items:center;">
+                <label
+                    style="font-size: 18px; display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: bold; color: #4caf50;">
+                    <input type="checkbox" id="ai-toggle" style="width:22px; height:22px;" checked>🤖 激活 AI (黑方)
+                </label>
+                <button class="tool-btn" style="background:#f9a825; color:#000; font-weight:bold; margin:0;"
+                    onclick="undoMove()">⏪ 悔棋</button>
+            </div>
+            <button class="tool-btn"
+                style="width:100%; background:#d32f2f; padding: 15px; font-size: 18px; font-weight:bold;"
+                onclick="resetBoard()">🔄 重置游戏 (回到开局)</button>
+        </div>
+        <div id="panel-layout" style="display:none;">
+            <div
+                style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 10px; background: rgba(51,51,51,0.8); padding: 10px; border-radius: 6px;">
+                <div>宽度: <input type="number" id="board-cols" value="9" min="3" max="50" style="width:50px;"
+                        onchange="updateBoardSize()"></div>
+                <div>高度: <input type="number" id="board-rows" value="10" min="3" max="50" style="width:50px;"
+                        onchange="updateBoardSize()"></div>
+            </div>
+            <div style="display:flex; gap:10px; margin-bottom: 15px;">
+                <button class="tool-btn" onclick="exportCode()" style="flex:1; background:#8e24aa;">📤 导出代码</button>
+                <button class="tool-btn" onclick="importCode()" style="flex:1; background:#00acc1;">📥 导入代码</button>
+            </div>
+            <h3 style="font-size: 14px; margin-bottom:5px;">红方/黑方兵种库</h3>
+            <div id="layout-red-btns" style="display: flex; flex-wrap: wrap; gap:5px; margin-bottom: 5px;"></div>
+            <div id="layout-black-btns" style="display: flex; flex-wrap: wrap; gap:5px; margin-bottom: 15px;"></div>
+            <div style="display: flex; justify-content: space-between; gap: 10px;">
+                <button class="tool-btn" onclick="selectSetupPiece(null, null)" style="background:#e53935; flex:1;">🗑️
+                    橡皮擦</button>
+                <button class="tool-btn" onclick="clearBoard()" style="background:#555; flex:1;">🧹 清空全盘</button>
+            </div>
+            <div id="setup-preview" style="margin-top:10px; font-size: 16px; color: #ffb74d; text-align:center;">当前持有: 无
+            </div>
+            <hr style="border:0; border-top:1px dashed #555; margin: 15px 0;">
+            <button class="tool-btn"
+                style="width:100%; background:#4caf50; padding: 12px; font-size: 16px; font-weight:bold;"
+                onclick="saveCurrentLayout()">💾 保存当前棋盘为默认</button>
+        </div>
+        <div id="panel-rules" style="display:none;">
+            <div style="display: flex; gap: 5px; margin-bottom: 15px;">
+                <select id="rule-selector" onchange="loadRuleToEditor()"
+                    style="flex:1; padding:10px; background: #333; color: white; border: 1px solid #666; font-size:16px; border-radius:6px;"></select>
+                <button class="tool-btn" style="background:#4caf50; margin:0;" onclick="createNewPiece()">➕</button>
+                <button class="tool-btn" style="background:#f44336; margin:0;"
+                    onclick="deleteCurrentPiece()">🗑️</button>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                <label>代号:</label><input type="text" id="edit-name" oninput="saveNameChange()" maxlength="4">
+            </div>
+            <div
+                style="background: rgba(30,30,30,0.8); padding: 10px; border-radius: 6px; border: 1px solid #444; margin-bottom: 10px;">
+                <strong style="color:#2196f3; display:block; margin-bottom:5px;">🟦 基础与贯穿</strong>
+                <label style="display:block; margin-bottom:5px; cursor:pointer;"><input type="checkbox" id="edit-isking"
+                        onchange="saveAbilities()"> 👑 主帅 </label>
+                <label style="display:block; margin-bottom:5px; cursor:pointer;"><input type="checkbox"
+                        id="edit-jump-cap" onchange="saveAbilities()"> 🦘 飞跃 </label>
+                <label style="display:block; margin-bottom:5px; cursor:pointer;"><input type="checkbox"
+                        id="edit-pierce-cap" onchange="saveAbilities()"> ☄️ 贯穿 </label>
+                <label style="display:block; margin-top:5px; color:#ffeb3b; font-size:14px;">🏹 射程内吃第 <input type="text"
+                        id="edit-capture-idx" onchange="saveAbilities()" value="1"
+                        style="width:80px; padding:2px; height:24px;"> 个阻挡物<br><span
+                        style="color:#999;font-size:12px;">(空格分隔，如"1 2"可吃第1和第2个，0=不可吃)</span></label>
+            </div>
+            <div
+                style="background: rgba(30,30,30,0.8); padding: 10px; border-radius: 6px; border: 1px solid #444; margin-bottom: 10px;">
+                <strong style="color:#e91e63; display:block; margin-bottom:5px;">🪢 连续行动能力</strong>
+                <label style="font-size:13px;">每回合可连续走 <input type="number" id="edit-combo-steps"
+                        onchange="saveAbilities()" min="1" max="5" value="1"
+                        style="width:40px; padding:2px; height:24px;"> 步<br><span
+                        style="color:#999;font-size:12px;">(1为正常单步，大于1为多段连击)</span></label>
+                <label style="font-size:13px; margin-top:5px; display:block; cursor:pointer; color:#ff8a65;"><input
+                        type="checkbox" id="edit-combo-stop" onchange="saveAbilities()"> 🩸 击杀即停 (吃子后强制结束当前回合连击)</label>
+            </div>
+            <div
+                style="background: rgba(30,30,30,0.8); padding: 10px; border-radius: 6px; border: 1px solid #444; margin-bottom: 10px;">
+                <strong style="color:#4caf50; display:block; margin-bottom:5px;">🌟 升变条件</strong>
+                <label style="display:block; margin-bottom:5px; cursor:pointer;"><input type="checkbox"
+                        id="edit-promo-en" onchange="saveAbilities()"> 开启升变功能</label>
+                <div style="font-size:13px; padding-left:20px; color:#ddd;">
+                    距离敌方底线 <= <input type="number" id="edit-promo-row" onchange="saveAbilities()" min="0" max="20"
+                        value="0" style="width:40px; padding:2px; height:24px;"> 行可升变<br>
+                        <span style="color:#aaa;">(0代表必须走到底线那一行)</span><br>
+                        <label style="cursor:pointer; margin-top:5px; display:inline-block;"><input type="checkbox"
+                                id="edit-promo-cap" onchange="saveAbilities()"> 或吃子后强制触发</label>
+                        <br>
+                        <div style="margin-top:5px; color:#4fc3f7; position:relative; z-index: 10;">
+                            🎯 指定目标:
+                            <input type="text" id="edit-promo-search" placeholder="点击搜索或多选..."
+                                onclick="openPromoDropdown()" oninput="filterPromoDropdown()"
+                                style="width:150px; padding:2px; height:24px; background:#222; color:#fff; border:1px solid #555; cursor:pointer;">
+                            <div id="promo-dropdown"
+                                style="display:none; position:absolute; top:28px; left:80px; width:160px; max-height:160px; overflow-y:auto; background:#2a2a2a; border:1px solid #777; box-shadow:0 4px 10px rgba(0,0,0,0.8); z-index:400; border-radius:4px;">
+                            </div>
+                            <div style="font-size:12px; margin-top:4px;" id="promo-selected-text"></div>
+                        </div>
+                        <span style="color:#aaa;font-size:12px;">(同类互转: 主帅只能变主帅, 非主帅只能变非主帅)</span>
+                </div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px;">
+                <span style="font-size:12px; color:#aaa;">缩放视野:</span>
+                <input type="range" id="gene-zoom" min="0.2" max="2" step="0.1" value="1" oninput="updateGeneZoom()"
+                    style="flex:1; margin:0 10px;">
+                <button class="tool-btn" style="margin:0; padding:4px 8px; background:#555; font-size:12px;"
+                    onclick="centerGeneEditor()">定位中心</button>
+            </div>
+            <div class="move-editor-wrapper" id="gene-wrap">
+                <div class="move-editor-grid" id="move-editor"></div>
+            </div>
+            <div style="font-size:13px; color:#ccc; text-align:center;">
+                🖌️手指滑动涂鸦<br>⬜空 ➔ <span style="color:#4caf50">🟩定点走子(可被挡)</span> ➔ <span
+                    style="color:#2196f3">🟦无限射线</span>
+            </div>
+        </div>
+    </div>
+    <script>
+        let isBoardLocked = true;
+        function toggleBoardLock() {
+            isBoardLocked = !isBoardLocked; const btn = document.getElementById('lock-btn');
+            if (isBoardLocked) { btn.innerText = '🔒 视角已锁'; btn.style.background = '#d32f2f'; }
+            else { btn.innerText = '🔓 视角未锁'; btn.style.background = '#444'; }
+        }
+        let COLS = 9, ROWS = 10;
+        let currentEvalId = 0;
+        let currentBadgeCalcId = 0;
+        let cachedEvalText = "0.0";
+        let cachedEvalColorScore = 0;
+        document.addEventListener('pointerdown', () => { currentEvalId++; currentBadgeCalcId++; }, { capture: true });
+        document.addEventListener('touchstart', () => { currentEvalId++; currentBadgeCalcId++; }, { capture: true, passive: true });
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = new AudioContext();
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+            o.connect(g); g.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+            if (type === 'move') { o.type = 'sine'; o.frequency.setValueAtTime(300, now); o.frequency.exponentialRampToValueAtTime(80, now + 0.08); g.gain.setValueAtTime(0.6, now); g.gain.exponentialRampToValueAtTime(0.01, now + 0.08); o.start(now); o.stop(now + 0.08); }
+            else if (type === 'capture') { o.type = 'square'; o.frequency.setValueAtTime(250, now); o.frequency.exponentialRampToValueAtTime(40, now + 0.15); g.gain.setValueAtTime(0.7, now); g.gain.exponentialRampToValueAtTime(0.01, now + 0.15); o.start(now); o.stop(now + 0.15); const o2 = audioCtx.createOscillator(); o2.type = 'sawtooth'; o2.frequency.setValueAtTime(800, now); o2.frequency.exponentialRampToValueAtTime(100, now + 0.1); o2.connect(g); o2.start(now); o2.stop(now + 0.1); }
+            else if (type === 'check') { o.type = 'triangle'; o.frequency.setValueAtTime(440, now); o.frequency.setValueAtTime(554.37, now + 0.1); g.gain.setValueAtTime(0.6, now); g.gain.linearRampToValueAtTime(0, now + 0.5); o.start(now); o.stop(now + 0.5); }
+            else if (type === 'promo') { o.type = 'sine'; o.frequency.setValueAtTime(500, now); o.frequency.linearRampToValueAtTime(1200, now + 0.3); g.gain.setValueAtTime(0.5, now); g.gain.linearRampToValueAtTime(0, now + 0.5); o.start(now); o.stop(now + 0.5); }
+        }
+        function createDefaultRuleProps() { return { promote: { enabled: false, row: 0, onCapture: false, targets: [] }, combo: { steps: 1, stopOnCapture: false }, captureIndex: 1, canJump: false }; }
+        let pieceRules = {
+            'R': { name: '车', isKing: false, canPierceCapture: false, moves: [{ dx: 0, dy: 1, type: 'slide' }, { dx: 0, dy: -1, type: 'slide' }, { dx: 1, dy: 0, type: 'slide' }, { dx: -1, dy: 0, type: 'slide' }], ...createDefaultRuleProps(), captureIndex: 1 },
+            'H': { name: '马', isKing: false, canPierceCapture: false, moves: [{ dx: 1, dy: 2, type: 'step' }, { dx: 2, dy: 1, type: 'step' }, { dx: -1, dy: 2, type: 'step' }, { dx: -2, dy: 1, type: 'step' }, { dx: 1, dy: -2, type: 'step' }, { dx: 2, dy: -1, type: 'step' }, { dx: -1, dy: -2, type: 'step' }, { dx: -2, dy: -1, type: 'step' }], ...createDefaultRuleProps(), captureIndex: 1 },
+            'E': { name: '相', isKing: false, canPierceCapture: false, moves: [{ dx: 2, dy: 2, type: 'step' }, { dx: 2, dy: -2, type: 'step' }, { dx: -2, dy: 2, type: 'step' }, { dx: -2, dy: -2, type: 'step' }], ...createDefaultRuleProps(), captureIndex: 1 },
+            'A': { name: '仕', isKing: false, canPierceCapture: false, moves: [{ dx: 1, dy: 1, type: 'step' }, { dx: 1, dy: -1, type: 'step' }, { dx: -1, dy: 1, type: 'step' }, { dx: -1, dy: -1, type: 'step' }], ...createDefaultRuleProps(), captureIndex: 1 },
+            'K': { name: '帅', isKing: true, canPierceCapture: false, moves: [{ dx: 0, dy: 1, type: 'step' }, { dx: 0, dy: -1, type: 'step' }, { dx: 1, dy: 0, type: 'step' }, { dx: -1, dy: 0, type: 'step' }], ...createDefaultRuleProps(), captureIndex: 1 },
+            'C': { name: '炮', isKing: false, canPierceCapture: false, moves: [{ dx: 0, dy: 1, type: 'slide' }, { dx: 0, dy: -1, type: 'slide' }, { dx: 1, dy: 0, type: 'slide' }, { dx: -1, dy: 0, type: 'slide' }], ...createDefaultRuleProps(), captureIndex: 2 },
+            'P': { name: '兵', isKing: false, canPierceCapture: false, moves: [{ dx: 0, dy: -1, type: 'step' }, { dx: 1, dy: 0, type: 'step' }, { dx: -1, dy: 0, type: 'step' }], ...createDefaultRuleProps(), captureIndex: 1 },
+        };
+        let activePieces = []; let pieceIdCounter = 0; let currentMode = 'play'; let currentTurn = 'red'; let selectedId = null; let setupTool = { color: null, type: null }; let moveHistory = [];
+        let pendingPromotionPiece = null;
+        let currentCombo = null;
+        let savedSetup = [
+            { x: 0, y: 0, type: 'R', color: 'black' }, { x: 1, y: 0, type: 'H', color: 'black' }, { x: 2, y: 0, type: 'E', color: 'black' }, { x: 3, y: 0, type: 'A', color: 'black' }, { x: 4, y: 0, type: 'K', color: 'black' }, { x: 5, y: 0, type: 'A', color: 'black' }, { x: 6, y: 0, type: 'E', color: 'black' }, { x: 7, y: 0, type: 'H', color: 'black' }, { x: 8, y: 0, type: 'R', color: 'black' },
+            { x: 1, y: 2, type: 'C', color: 'black' }, { x: 7, y: 2, type: 'C', color: 'black' }, { x: 0, y: 3, type: 'P', color: 'black' }, { x: 2, y: 3, type: 'P', color: 'black' }, { x: 4, y: 3, type: 'P', color: 'black' }, { x: 6, y: 3, type: 'P', color: 'black' }, { x: 8, y: 3, type: 'P', color: 'black' },
+            { x: 0, y: 9, type: 'R', color: 'red' }, { x: 1, y: 9, type: 'H', color: 'red' }, { x: 2, y: 9, type: 'E', color: 'red' }, { x: 3, y: 9, type: 'A', color: 'red' }, { x: 4, y: 9, type: 'K', color: 'red' }, { x: 5, y: 9, type: 'A', color: 'red' }, { x: 6, y: 9, type: 'E', color: 'red' }, { x: 7, y: 9, type: 'H', color: 'red' }, { x: 8, y: 9, type: 'R', color: 'red' },
+            { x: 1, y: 7, type: 'C', color: 'red' }, { x: 7, y: 7, type: 'C', color: 'red' }, { x: 0, y: 6, type: 'P', color: 'red' }, { x: 2, y: 6, type: 'P', color: 'red' }, { x: 4, y: 6, type: 'P', color: 'red' }, { x: 6, y: 6, type: 'P', color: 'red' }, { x: 8, y: 6, type: 'P', color: 'red' }
+        ];
+        let bScale = 1, bTx = 0, bTy = 0; let savedScale = 1; let isDragBoard = false, startX, startY, initTx = 0, initTy = 0; let isPinching = false, initDist = 0, initScale = 1;
+        const bWrapper = document.getElementById('board-container'); let ptrDownX = 0, ptrDownY = 0; let activeDragPiece = null; let pieceStartPixelX = 0, pieceStartPixelY = 0;
+        document.addEventListener('wheel', e => {
+            if (isBoardLocked || e.target.closest('.menu-panel') || e.target.closest('.menu-btn') || document.getElementById('promo-overlay').style.display === 'flex') return;
+            e.preventDefault(); bScale -= e.deltaY * 0.0015; bScale = Math.max(0.2, Math.min(bScale, 4));
+            bWrapper.style.transform = `translate(${bTx}px, ${bTy}px) scale(${bScale})`;
+        }, { passive: false });
+        document.addEventListener('pointerdown', e => {
+            if (e.target.closest('.menu-panel') || e.target.closest('.menu-btn') || e.target.closest('.reset-view-btn') || document.getElementById('promo-overlay').style.display === 'flex') return;
+            if (e.pointerType === 'touch' && !e.isPrimary) return;
+            ptrDownX = e.clientX; ptrDownY = e.clientY;
+            const pieceEl = e.target.closest('.piece');
+            if (pieceEl && currentMode === 'play') {
+                if (currentTurn === 'black' && document.getElementById('ai-toggle').checked) return;
+                const p = activePieces.find(ap => ap.id === pieceEl.id);
+                if (p && p.color === currentTurn) {
+                    if (currentCombo && currentCombo.pieceId !== p.id) return;
+                    activeDragPiece = p; selectedId = p.id; renderPieces(); renderDots();
+                    const cellSizePx = document.getElementById('board-inner').clientWidth / COLS;
+                    pieceStartPixelX = p.x * cellSizePx; pieceStartPixelY = p.y * cellSizePx;
+                    p.el.style.transition = 'none'; p.el.style.zIndex = '100'; e.preventDefault(); return;
+                }
+            }
+            if (isBoardLocked) return;
+            isDragBoard = true; startX = e.clientX; startY = e.clientY; initTx = bTx; initTy = bTy; bWrapper.style.transition = 'none';
+        });
+        document.addEventListener('pointermove', e => {
+            if (activeDragPiece) {
+                const dx = (e.clientX - ptrDownX) / bScale; const dy = (e.clientY - ptrDownY) / bScale;
+                activeDragPiece.el.style.transform = `translate(${pieceStartPixelX + dx}px, ${pieceStartPixelY + dy}px) scale(1.15)`; e.preventDefault(); return;
+            }
+            if (isDragBoard) {
+                if (e.pointerType === 'touch' && isPinching) return;
+                let dx = e.clientX - startX; let dy = e.clientY - startY; bTx = initTx + dx; bTy = initTy + dy;
+                bWrapper.style.transform = `translate(${bTx}px, ${bTy}px) scale(${bScale})`;
+                if (Math.abs(dx) > 5 || Math.abs(dy) > 5) document.body.classList.add('is-panning');
+            }
+        });
+        document.addEventListener('pointerup', e => {
+            if (e.target.closest('.menu-panel') || e.target.closest('.menu-btn') || e.target.closest('.reset-view-btn')) return;
+            let dist = Math.hypot(e.clientX - ptrDownX, e.clientY - ptrDownY);
+            let rect = document.getElementById('board-inner').getBoundingClientRect();
+            let dropX = Math.floor((e.clientX - rect.left) / (rect.width / COLS));
+            let dropY = Math.floor((e.clientY - rect.top) / (rect.height / ROWS));
+            if (activeDragPiece) {
+                activeDragPiece.el.style.transition = ''; activeDragPiece.el.style.zIndex = '';
+                if (dist >= 5 && dropX >= 0 && dropX < COLS && dropY >= 0 && dropY < ROWS) {
+                    let move = getValidMoves(activeDragPiece, activePieces, true).find(m => m.tx === dropX && m.ty === dropY);
+                    if (move) executeMove(activeDragPiece, dropX, dropY); else renderPieces();
+                } else { renderPieces(); }
+                activeDragPiece = null;
+            } else {
+                if (dist < 5 && dropX >= 0 && dropX < COLS && dropY >= 0 && dropY < ROWS) {
+                    let clickedPiece = activePieces.find(p => p.x === dropX && p.y === dropY);
+                    if (clickedPiece) handlePieceClick(clickedPiece.id); else handleGridClick(dropX, dropY);
+                }
+            }
+            isDragBoard = false; setTimeout(() => document.body.classList.remove('is-panning'), 50);
+        });
+        document.addEventListener('touchstart', e => {
+            if (isBoardLocked || e.target.closest('.menu-panel') || document.getElementById('promo-overlay').style.display === 'flex') return;
+            if (e.touches.length === 2) { isPinching = true; isDragBoard = false; initDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); initScale = bScale; }
+        }, { passive: false });
+        document.addEventListener('touchmove', e => {
+            if (isBoardLocked || e.target.closest('.menu-panel')) return;
+            if (e.touches.length === 2 && isPinching) {
+                e.preventDefault(); let dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                bScale = initScale * (dist / initDist); bScale = Math.max(0.2, Math.min(bScale, 4));
+                bWrapper.style.transform = `translate(${bTx}px, ${bTy}px) scale(${bScale})`;
+            }
+        }, { passive: false });
+        document.addEventListener('touchend', e => { if (e.touches.length < 2) isPinching = false; });
+        function resetView() {
+            bScale = savedScale;
+            bTx = 0; bTy = 0;
+            bWrapper.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
+            bWrapper.style.transform = `translate(0px, 0px) scale(${bScale})`;
+            setTimeout(() => bWrapper.style.transition = 'none', 300);
+        }
+        function init() { COLS = parseInt(document.getElementById('board-cols').value) || 9; ROWS = parseInt(document.getElementById('board-rows').value) || 10; updateBoardSize(COLS, ROWS, true); resetBoard(); populateRuleSelector(); renderLayoutButtons(); setupEditorListeners(); }
+        function toggleMenu(forceShow) {
+            const panel = document.getElementById('menu-panel');
+            if (typeof forceShow === 'boolean') panel.style.display = forceShow ? 'block' : 'none';
+            else panel.style.display = (panel.style.display === 'none' || panel.style.display === '') ? 'block' : 'none';
+            if (panel.style.display === 'block') {
+                setTimeout(centerGeneEditor, 100);
+            } else {
+                setMode('play');
+            }
+        }
+        function updateBoardSize(c, r, skipRuleLoad = false) {
+            COLS = c || parseInt(document.getElementById('board-cols').value) || 9; ROWS = r || parseInt(document.getElementById('board-rows').value) || 10;
+            document.documentElement.style.setProperty('--cols', COLS); document.documentElement.style.setProperty('--rows', ROWS);
+            const bg = document.getElementById('grid-bg'); bg.innerHTML = '';
+            for (let y = 0; y < ROWS; y++) { for (let x = 0; x < COLS; x++) { const cell = document.createElement('div'); cell.className = 'cell'; cell.dataset.x = (x === COLS - 1) ? 'last' : x; cell.dataset.y = (y === ROWS - 1) ? 'last' : y; bg.appendChild(cell); } }
+            activePieces = activePieces.filter(p => {
+                if (p.x >= COLS || p.y >= ROWS) {
+                    if (p.el) p.el.remove();
+                    return false;
+                }
+                return true;
+            });
+            renderPieces(); renderDots(); initMoveEditor(); if (!skipRuleLoad) loadRuleToEditor();
+        }
+        function resetBoard() {
+            document.getElementById('piece-layer').innerHTML = ''; activePieces = []; moveHistory = []; currentCombo = null; savedSetup.forEach(p => { if (p.x < COLS && p.y < ROWS && pieceRules[p.type]) addPiece(p.type, p.color, p.x, p.y); }); currentTurn = 'red'; selectedId = null; updateStatus(false); renderPieces(); renderDots(); toggleMenu(false);
+            updateEvaluation();
+        }
+        function clearBoard() { document.getElementById('piece-layer').innerHTML = ''; activePieces = []; renderDots(); }
+        function applyTextScale(el, text) {
+            el.classList.remove('two-char', 'multi-char');
+            if (!text) return;
+            let t = String(text);
+            let len = t.length;
+            if (len === 1) {
+                el.innerHTML = t;
+            } else if (len === 2) {
+                el.classList.add('two-char');
+                el.innerHTML = t;
+            } else if (len === 3) {
+                el.innerHTML = `<span style="display: inline-block; text-align: center; line-height: 1.1; font-size: 0.7em;">${t.substring(0, 1)}<br>${t.substring(1, 3)}</span>`;
+            } else if (len === 4) {
+                el.innerHTML = `<span style="display: inline-block; text-align: center; line-height: 1.1; font-size: 0.6em;">${t.substring(0, 2)}<br>${t.substring(2, 4)}</span>`;
+            } else if (len === 5) {
+                el.innerHTML = `<span style="display: inline-block; text-align: center; line-height: 1.1; font-size: 0.5em;">${t.substring(0, 2)}<br>${t.substring(2, 5)}</span>`;
+            } else if (len === 6) {
+                el.innerHTML = `<span style="display: inline-block; text-align: center; line-height: 1.1; font-size: 0.45em;">${t.substring(0, 3)}<br>${t.substring(3, 6)}</span>`;
+            } else {
+                el.classList.add('multi-char');
+                el.innerHTML = t;
+            }
+        }
+        function addPiece(type, color, x, y) {
+            if (!pieceRules[type]) return;
+            const id = 'p_' + (++pieceIdCounter);
+            const el = document.createElement('div');
+            el.className = `piece ${color}`;
+            el.innerText = pieceRules[type].name;
+            el.id = id;
+            el.dataset.currentName = pieceRules[type].name;
+            applyTextScale(el, pieceRules[type].name);
+            document.getElementById('piece-layer').appendChild(el);
+            activePieces.push({ id, type, color, x, y, el });
+        }
+        function renderPieces() {
+            activePieces.forEach(p => {
+                p.el.style.transform = `translate(calc(${p.x} * var(--cell-size)), calc(${p.y} * var(--cell-size))) ${p.id === selectedId ? 'scale(1.15)' : 'scale(1)'}`;
+                let targetName = pieceRules[p.type].name;
+                if (p.el.dataset.currentName !== targetName) {
+                    p.el.innerText = targetName;
+                    applyTextScale(p.el, targetName);
+                    p.el.dataset.currentName = targetName;
+                }
+                if (p.id === selectedId) p.el.classList.add('selected');
+                else p.el.classList.remove('selected');
+            });
+        }
+        function renderDots() {
+            const layer = document.getElementById('dot-layer'); layer.innerHTML = '';
+            if (currentMode !== 'play' || !selectedId) return;
+            const selPiece = activePieces.find(p => p.id === selectedId); if (!selPiece) return;
+            const moves = getValidMoves(selPiece, activePieces, true);
+            moves.forEach(m => {
+                const dot = document.createElement('div');
+                const victims = getPathVictims(selPiece, m.tx, m.ty, activePieces);
+                dot.className = `dot ${victims.length > 0 ? 'capture' : m.type}`;
+                dot.style.transform = `translate(calc(${m.tx} * var(--cell-size)), calc(${m.ty} * var(--cell-size)))`;
+                layer.appendChild(dot);
+            });
+        }
+        function getGCD(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { let t = b; b = a % b; a = t; } return Math.max(1, a); }
+        function getBaseValidMoves(piece, testPieces) {
+            const rule = pieceRules[piece.type]; let moves = []; const directionY = piece.color === 'black' ? -1 : 1;
+            const validCapIndices = (Array.isArray(rule.captureIndex) ? rule.captureIndex : [rule.captureIndex || 0]).map(Number);
+            const maxCap = Math.max(...validCapIndices);
+            rule.moves.forEach(m => {
+                const actualDy = m.dy * directionY;
+                if (m.type === 'slide') {
+                    let tx = piece.x + m.dx, ty = piece.y + actualDy, jumps = 0;
+                    while (tx >= 0 && tx < COLS && ty >= 0 && ty < ROWS) {
+                        const target = testPieces.find(p => p.x === tx && p.y === ty);
+                        if (!target) {
+                            if (rule.canPierceCapture || rule.canJump || jumps === 0) moves.push({ tx, ty, type: 'slide' });
+                        } else {
+                            jumps++;
+                            let isKing = pieceRules[target.type] && pieceRules[target.type].isKing;
+                            if (rule.canPierceCapture) {
+                                if (isKing) {
+                                    if (validCapIndices.includes(jumps) && target.color !== piece.color) {
+                                        moves.push({ tx, ty, type: 'slide' }); break;
+                                    } else if (jumps < maxCap && maxCap > 0) {
+                                    } else break;
+                                } else moves.push({ tx, ty, type: 'slide' });
+                            } else {
+                                if (validCapIndices.includes(jumps) && target.color !== piece.color) moves.push({ tx, ty, type: 'slide' });
+                                if (!rule.canJump) {
+                                    if (jumps >= maxCap || maxCap === 0) break;
+                                }
+                            }
+                        }
+                        tx += m.dx; ty += actualDy;
+                    }
+                } else if (m.type === 'step') {
+                    const tx = piece.x + m.dx, ty = piece.y + actualDy;
+                    if (tx >= 0 && tx < COLS && ty >= 0 && ty < ROWS) {
+                        const target = testPieces.find(p => p.x === tx && p.y === ty);
+                        let obstacleCount = 0;
+                        let g = getGCD(Math.abs(m.dx), Math.abs(actualDy));
+                        if (g > 1) {
+                            let stepX = m.dx / g, stepY = actualDy / g;
+                            for (let i = 1; i < g; i++) if (testPieces.some(p => p.x === piece.x + i * stepX && p.y === piece.y + i * stepY)) obstacleCount++;
+                        }
+                        let isKing = target && pieceRules[target.type] && pieceRules[target.type].isKing;
+                        if (rule.canPierceCapture && !isKing) {
+                            moves.push({ tx, ty, type: 'step' });
+                        } else {
+                            if (!target) {
+                                if (rule.canJump || obstacleCount === 0) moves.push({ tx, ty, type: 'step' });
+                            } else {
+                                if (validCapIndices.includes(obstacleCount + 1) && target.color !== piece.color) moves.push({ tx, ty, type: 'step' });
+                            }
+                        }
+                    }
+                }
+            }); return moves;
+        }
+        function getComboPaths(startPiece, stepsLeft, currentPieces) {
+            let paths = [];
+            function dfs(currP, steps, board, currentVictims, currentPath) {
+                if (currentVictims.some(v => pieceRules[v.type] && pieceRules[v.type].isKing)) {
+                    paths.push({ tx: currP.x, ty: currP.y, comboVictims: currentVictims, path: currentPath }); return;
+                }
+                if (steps === 0) {
+                    paths.push({ tx: currP.x, ty: currP.y, comboVictims: currentVictims, path: currentPath }); return;
+                }
+                let dummy = { ...currP };
+                let moves = getBaseValidMoves(dummy, board);
+                if (moves.length === 0) {
+                    if (currentPath.length > 0) paths.push({ tx: currP.x, ty: currP.y, comboVictims: currentVictims, path: currentPath }); return;
+                }
+                for (let m of moves) {
+                    let vics = getPathVictims(dummy, m.tx, m.ty, board);
+                    let nextBoard = board.map(p => ({ ...p }));
+                    let np = nextBoard.find(p => p.id === currP.id);
+                    if (np) { np.x = m.tx; np.y = m.ty; }
+                    nextBoard = nextBoard.filter(p => !vics.find(v => v.id === p.id));
+                    let rule = pieceRules[currP.type];
+                    let nextSteps = (rule.combo && rule.combo.stopOnCapture && vics.length > 0) ? 0 : steps - 1;
+                    dfs({ ...currP, x: m.tx, y: m.ty }, nextSteps, nextBoard, [...currentVictims, ...vics], [...currentPath, { x: m.tx, y: m.ty }]);
+                }
+            }
+            dfs(startPiece, stepsLeft, currentPieces, [], []);
+            return paths;
+        }
+        function getValidMoves(piece, testPieces, isUI = false) {
+            if (isUI) {
+                return getBaseValidMoves(piece, testPieces);
+            } else {
+                let rule = pieceRules[piece.type];
+                if (rule && rule.combo && rule.combo.steps > 1) {
+                    let comboPaths = getComboPaths(piece, rule.combo.steps, testPieces);
+                    let uniqueMap = new Map();
+                    for (let cp of comboPaths) {
+                        let key = cp.tx + ',' + cp.ty;
+                        if (!uniqueMap.has(key)) uniqueMap.set(key, { tx: cp.tx, ty: cp.ty, type: 'step', comboVictims: cp.comboVictims });
+                    }
+                    return Array.from(uniqueMap.values());
+                }
+                return getBaseValidMoves(piece, testPieces);
+            }
+        }
+        function getPathVictims(piece, tx, ty, testPieces) {
+            const rule = pieceRules[piece.type]; let victims = [];
+            if (rule.canPierceCapture) {
+                let dx = tx - piece.x, dy = ty - piece.y; let steps = getGCD(dx, dy), sx = dx / steps, sy = dy / steps;
+                for (let i = 1; i <= steps; i++) {
+                    let cx = piece.x + i * sx, cy = piece.y + i * sy;
+                    let t = testPieces.find(p => p.x === cx && p.y === cy && p.id !== piece.id);
+                    if (t) {
+                        let isTargetKing = pieceRules[t.type] && pieceRules[t.type].isKing;
+                        if (!isTargetKing || (cx === tx && cy === ty)) victims.push(t);
+                    }
+                }
+            } else { let t = testPieces.find(p => p.x === tx && p.y === ty && p.id !== piece.id); if (t) victims.push(t); }
+            return victims;
+        }
+        function handlePieceClick(id) {
+            if (currentMode === 'layout') {
+                if (setupTool.type === 'eraser') { const idx = activePieces.findIndex(p => p.id === id); if (idx >= 0) { activePieces[idx].el.remove(); activePieces.splice(idx, 1); } }
+                else if (setupTool.type) { const p = activePieces.find(p => p.id === id); p.type = setupTool.type; p.color = setupTool.color; }
+                renderPieces(); return;
+            }
+            if (currentTurn === 'black' && document.getElementById('ai-toggle').checked) return;
+            const clickedPiece = activePieces.find(p => p.id === id);
+            if (currentCombo) {
+                if (id !== currentCombo.pieceId) {
+                    let selPiece = activePieces.find(p => p.id === currentCombo.pieceId);
+                    let move = getValidMoves(selPiece, activePieces, true).find(m => m.tx === clickedPiece.x && m.ty === clickedPiece.y);
+                    if (move) executeMove(selPiece, clickedPiece.x, clickedPiece.y);
+                } else { selectedId = id; renderPieces(); renderDots(); }
+                return;
+            }
+            if (selectedId) {
+                const selPiece = activePieces.find(p => p.id === selectedId);
+                if (selPiece.id === id) selectedId = null;
+                else if (clickedPiece.color === currentTurn && !pieceRules[selPiece.type].canPierceCapture) selectedId = id;
+                else {
+                    const move = getValidMoves(selPiece, activePieces, true).find(m => m.tx === clickedPiece.x && m.ty === clickedPiece.y);
+                    if (move) executeMove(selPiece, clickedPiece.x, clickedPiece.y); else selectedId = null;
+                }
+            } else { if (clickedPiece.color === currentTurn) selectedId = id; }
+            renderPieces(); renderDots();
+        }
+        function handleGridClick(x, y) {
+            if (currentMode === 'layout' && setupTool.type && setupTool.type !== 'eraser') { if (!activePieces.find(p => p.x === x && p.y === y)) addPiece(setupTool.type, setupTool.color, x, y); renderPieces(); return; }
+            if (selectedId && currentMode === 'play') {
+                const selPiece = activePieces.find(p => p.id === selectedId); const move = getValidMoves(selPiece, activePieces, true).find(m => m.tx === x && m.ty === y);
+                if (move) executeMove(selPiece, x, y); else if (!currentCombo) { selectedId = null; renderPieces(); renderDots(); }
+            }
+        }
+        function undoMove() {
+            if (moveHistory.length === 0) return;
+            function popOne() {
+                if (moveHistory.length === 0) return false;
+                let last = moveHistory.pop(); let p = activePieces.find(ap => ap.id === last.pieceId);
+                if (p) { p.x = last.fromX; p.y = last.fromY; if (last.promotedFrom) { p.type = last.promotedFrom; p.el.innerText = pieceRules[p.type].name; applyTextScale(p.el, p.el.innerText); } }
+                last.victims.forEach(v => { const el = document.createElement('div'); el.className = `piece ${v.color}`; el.innerText = pieceRules[v.type].name; applyTextScale(el, el.innerText); el.id = v.id; document.getElementById('piece-layer').appendChild(el); activePieces.push({ id: v.id, type: v.type, color: v.color, x: v.x, y: v.y, el: el }); });
+                currentTurn = last.turnBefore; currentCombo = last.comboStateBefore ? { ...last.comboStateBefore } : null; return true;
+            }
+            popOne();
+            if (document.getElementById('ai-toggle').checked && currentTurn === 'black' && !currentCombo) { popOne(); }
+            if (currentCombo) selectedId = currentCombo.pieceId; else selectedId = null;
+            updateStatus(checkIsCheck(currentTurn, activePieces)); renderPieces(); renderDots();
+            updateEvaluation();
+        }
+        function createSliceEffect(v) {
+            const container = document.createElement('div'); container.style.position = 'absolute'; container.style.width = 'var(--cell-size)'; container.style.height = 'var(--cell-size)'; container.style.transform = `translate(calc(${v.x} * var(--cell-size)), calc(${v.y} * var(--cell-size)))`; container.style.zIndex = '15'; container.style.pointerEvents = 'none';
+            const botHalf = document.createElement('div'); botHalf.className = `slice-half slice-bot ${v.color}`; botHalf.innerText = pieceRules[v.type].name; applyTextScale(botHalf, botHalf.innerText);
+            const topHalf = document.createElement('div'); topHalf.className = `slice-half slice-top ${v.color}`; topHalf.innerText = pieceRules[v.type].name; applyTextScale(topHalf, topHalf.innerText);
+            const slash = document.createElement('div'); slash.className = 'slash-line';
+            container.appendChild(botHalf); container.appendChild(topHalf); container.appendChild(slash); document.getElementById('piece-layer').appendChild(container); setTimeout(() => container.remove(), 600);
+        }
+        async function calculateBadgeAsync() { return; }
+        function executeMove(piece, tx, ty, aiComboVictims = null) {
+            document.querySelectorAll('.quality-badge').forEach(el => el.remove());
+            let preMoveState = activePieces.map(p => ({ ...p }));
+            let pId = piece.id; let pColor = piece.color;
+            let playedTx = tx; let playedTy = ty;
+            let wasInCheck = checkIsCheck(pColor, preMoveState);
+            let victims = aiComboVictims || getPathVictims(piece, tx, ty, activePieces);
+            let isCapture = victims.length > 0;
+            let hist = { pieceId: piece.id, fromX: piece.x, fromY: piece.y, toX: tx, toY: ty, victims: victims.map(v => ({ id: v.id, type: v.type, color: v.color, x: v.x, y: v.y })), turnBefore: currentTurn, comboStateBefore: currentCombo ? { ...currentCombo } : null };
+            victims.forEach(v => { v.el.style.display = 'none'; v.el.remove(); activePieces = activePieces.filter(p => p.id !== v.id); createSliceEffect(v); const ripple = document.createElement('div'); ripple.className = 'hit-ripple'; ripple.style.transform = `translate(calc(${v.x} * var(--cell-size)), calc(${v.y} * var(--cell-size))) scale(0.5)`; document.getElementById('dot-layer').appendChild(ripple); });
+            if (isCapture) { document.getElementById('board-inner').classList.add('shake'); setTimeout(() => document.getElementById('board-inner').classList.remove('shake'), 250); }
+            piece.x = tx; piece.y = ty;
+            playSound(isCapture ? 'capture' : 'move');
+            if (!currentCombo) {
+                calculateBadgeAsync(pId, playedTx, playedTy, preMoveState, pColor, wasInCheck);
+            }
+            let kingsDestroyed = victims.filter(v => pieceRules[v.type] && pieceRules[v.type].isKing);
+            let isComboContinues = false;
+            if (!aiComboVictims && kingsDestroyed.length === 0) {
+                let rule = pieceRules[piece.type];
+                let stopDueToCapture = rule.combo && rule.combo.stopOnCapture && isCapture;
+                if (!stopDueToCapture) {
+                    if (currentCombo && currentCombo.pieceId === piece.id) {
+                        currentCombo.stepsLeft--;
+                        if (currentCombo.stepsLeft > 0) isComboContinues = true; else currentCombo = null;
+                    } else {
+                        if (rule.combo && rule.combo.steps > 1) {
+                            currentCombo = { pieceId: piece.id, stepsLeft: rule.combo.steps - 1 }; isComboContinues = true;
+                        }
+                    }
+                } else { currentCombo = null; }
+            } else if (kingsDestroyed.length > 0) {
+                currentCombo = null;
+            }
+            if (isComboContinues) {
+                let nextMoves = getValidMoves(piece, activePieces, true);
+                if (nextMoves.length === 0) { currentCombo = null; isComboContinues = false; }
+            }
+            let rule = pieceRules[piece.type];
+            let reachedRow = piece.color === 'red' ? (ty <= rule.promote.row) : (ty >= ROWS - 1 - rule.promote.row);
+            let canPromote = !isComboContinues && rule.promote && rule.promote.enabled && (reachedRow || (rule.promote.onCapture && isCapture));
+            if (canPromote && kingsDestroyed.length === 0) {
+                pendingPromotionPiece = piece;
+                moveHistory.push(hist);
+                if (piece.color === 'black' && document.getElementById('ai-toggle').checked) {
+                    let bestType = null, maxV = -1;
+                    let myRule = pieceRules[piece.type];
+                    let isCurrentKing = myRule.isKing;
+                    let validTargets = (myRule.promote.targets && myRule.promote.targets.length > 0)
+                        ? myRule.promote.targets
+                        : Object.keys(pieceRules).filter(k => pieceRules[k].isKing === isCurrentKing && k !== piece.type);
+                    for (let k of validTargets) {
+                        if (pieceRules[k] && k !== piece.type && pieceRules[k].isKing === isCurrentKing) {
+                            let v = getPieceValue(k);
+                            if (v > maxV) { maxV = v; bestType = k; }
+                        }
+                    }
+                    if (bestType) {
+                        playSound('promo');
+                        hist.promotedFrom = piece.type;
+                        piece.type = bestType;
+                    }
+                    pendingPromotionPiece = null;
+                    selectedId = null;
+                    renderPieces();
+                    renderDots();
+                    finalizeTurn(kingsDestroyed);
+                } else {
+                    showPromotionDialog(piece, hist);
+                }
+                return;
+            }
+            moveHistory.push(hist);
+            if (isComboContinues) {
+                selectedId = piece.id; renderPieces(); renderDots(); updateStatus(false); return;
+            }
+            selectedId = null; renderPieces(); renderDots();
+            finalizeTurn(kingsDestroyed);
+        }
+        function finalizeTurn(kingsDestroyed) {
+            if (kingsDestroyed.length > 0) {
+                setTimeout(() => {
+                    showGameOver(kingsDestroyed[0].color === 'red' ? 'black' : 'red');
+                }, 300);
+                return;
+            }
+            currentTurn = currentTurn === 'red' ? 'black' : 'red';
+            const isCheck = checkIsCheck(currentTurn, activePieces);
+            if (isCheck) setTimeout(() => playSound('check'), 100);
+            updateStatus(isCheck);
+            updateEvaluation();
+            if (currentTurn === 'black' && document.getElementById('ai-toggle').checked) {
+                makeAIMove();
+            }
+        }
+        function showPromotionDialog(piece, histObj) {
+            playSound('promo');
+            const overlay = document.getElementById('promo-overlay');
+            const optsContainer = document.getElementById('promo-options');
+            optsContainer.innerHTML = '';
+            let isCurrentKing = pieceRules[piece.type].isKing;
+            let validTargets = (pieceRules[piece.type].promote.targets && pieceRules[piece.type].promote.targets.length > 0)
+                ? pieceRules[piece.type].promote.targets
+                : Object.keys(pieceRules).filter(k => pieceRules[k].isKing === isCurrentKing && k !== piece.type);
+            let actualTargets = [];
+            for (let key of validTargets) {
+                if (pieceRules[key] && key !== piece.type && pieceRules[key].isKing === isCurrentKing) {
+                    actualTargets.push(key);
+                }
+            }
+            if (actualTargets.length === 1) {
+                let onlyKey = actualTargets;
+                histObj.promotedFrom = piece.type;
+                piece.type = onlyKey;
+                selectedId = null;
+                renderPieces();
+                renderDots();
+                finalizeTurn([]);
+                return;
+            }
+            if (actualTargets.length === 0) {
+                overlay.style.display = 'none';
+                selectedId = null;
+                renderPieces();
+                renderDots();
+                finalizeTurn([]);
+                return;
+            }
+            let isClickable = false;
+            setTimeout(() => { isClickable = true; }, 200);
+            for (let key of actualTargets) {
+                let btn = document.createElement('div');
+                btn.className = `promo-opt ${piece.color === 'black' ? 'black-piece' : ''}`;
+                btn.innerText = pieceRules[key].name;
+                applyTextScale(btn, pieceRules[key].name);
+                btn.onclick = (e) => {
+                    if (!isClickable) return;
+                    histObj.promotedFrom = piece.type;
+                    piece.type = key;
+                    overlay.style.display = 'none';
+                    selectedId = null;
+                    renderPieces();
+                    renderDots();
+                    finalizeTurn([]);
+                };
+                optsContainer.appendChild(btn);
+            }
+            overlay.style.display = 'flex';
+        }
+        function isSquareAttacked(x, y, attackerColor, currentPieces) { const attackers = currentPieces.filter(p => p.color === attackerColor); for (let a of attackers) { const moves = getValidMoves(a, currentPieces, false); if (moves.some(m => m.tx === x && m.ty === y)) return true; } return false; }
+        function checkIsCheck(turnColor, currentPieces) { const enemyColor = turnColor === 'red' ? 'black' : 'red'; const kings = currentPieces.filter(p => p.color === turnColor && pieceRules[p.type] && pieceRules[p.type].isKing); if (kings.length === 0) return false; for (let k of kings) if (isSquareAttacked(k.x, k.y, enemyColor, currentPieces)) return true; return false; }
+        function getPieceValue(type) {
+            const r = pieceRules[type]; if (!r) return 0;
+            if (r.isKing) return 10000;
+            let val = 0;
+            r.moves.forEach(m => val += (m.type === 'slide' ? 25 : 8));
+            let caps = (Array.isArray(r.captureIndex) ? r.captureIndex : [r.captureIndex || 0]).map(Number);
+            if (caps.includes(1)) val += 30;
+            if (caps.includes(2)) val += 15;
+            if (caps.length > 1) val += (caps.length - 1) * 25;
+            if (r.canPierceCapture) val += 50;
+            if (r.combo && r.combo.steps > 1) val += (r.combo.steps - 1) * 30;
+            return val;
+        }
+        function evaluateVirtualBoard(testPieces) {
+            let score = 0; let centerX = COLS / 2 - 0.5;
+            let pieceValCache = {};
+            let maxPromoValCache = {};
+            for (let k in pieceRules) {
+                pieceValCache[k] = getPieceValue(k);
+                if (pieceRules[k].promote && pieceRules[k].promote.enabled) {
+                    let targets = (pieceRules[k].promote.targets && pieceRules[k].promote.targets.length > 0)
+                        ? pieceRules[k].promote.targets
+                        : Object.keys(pieceRules).filter(t => pieceRules[t].isKing === pieceRules[k].isKing && t !== k);
+                    let maxV = 0;
+                    targets.forEach(t => {
+                        if (pieceValCache[t] === undefined) pieceValCache[t] = getPieceValue(t);
+                        if (pieceValCache[t] > maxV) maxV = pieceValCache[t];
+                    });
+                    maxPromoValCache[k] = maxV;
+                }
+            }
+            for (let p of testPieces) {
+                let rule = pieceRules[p.type];
+                if (!rule) continue;
+                let v = pieceValCache[p.type];
+                let mobilityMoves = getBaseValidMoves(p, testPieces);
+                let mobilityScore = mobilityMoves.length * 2.5;
+                let advance = p.color === 'black' ? p.y : (ROWS - 1 - p.y);
+                let posBonus = (10 - Math.abs(p.x - centerX)) * 1.5 + advance * 2;
+                let promoBonus = 0;
+                if (rule.promote && rule.promote.enabled) {
+                    let targetRow = rule.promote.row;
+                    let distToPromo = p.color === 'black' ? (ROWS - 1 - targetRow - p.y) : (p.y - targetRow);
+                    if (distToPromo < 0) distToPromo = 0;
+                    let targetMaxVal = maxPromoValCache[p.type] || v;
+                    if (targetMaxVal > v) {
+                        let dangerDistance = 4;
+                        if (distToPromo <= dangerDistance) {
+                            promoBonus = (targetMaxVal - v) * (1 - distToPromo / (dangerDistance + 1));
+                        }
+                    }
+                }
+                let total = v + mobilityScore + posBonus + promoBonus;
+                if (p.color === 'black') score += total; else score -= total;
+            }
+            return score;
+        }
+        function minimax(testPieces, depth, alpha, beta, isMaximizing) {
+            let rKing = testPieces.find(k => k.color === 'red' && pieceRules[k.type] && pieceRules[k.type].isKing);
+            let bKing = testPieces.find(k => k.color === 'black' && pieceRules[k.type] && pieceRules[k.type].isKing);
+            if (!rKing) return 100000 + depth * 1000;
+            if (!bKing) return -100000 - depth * 1000;
+            if (depth === 0) return evaluateVirtualBoard(testPieces);
+            let color = isMaximizing ? 'black' : 'red';
+            let myPieces = testPieces.filter(p => p.color === color);
+            let moves = [];
+            for (let p of myPieces) {
+                getValidMoves(p, testPieces, false).forEach(m => {
+                    let vics = m.comboVictims || getPathVictims(p, m.tx, m.ty, testPieces);
+                    moves.push({
+                        id: p.id,
+                        tx: m.tx,
+                        ty: m.ty,
+                        victims: vics.map(v => v.id),
+                        capScore: vics.length,
+                        comboVictims: m.comboVictims
+                    });
+                });
+            }
+            moves.sort((a, b) => b.capScore - a.capScore);
+            if (isMaximizing) {
+                let maxE = -Infinity;
+                for (let m of moves) {
+                    let ns = applyVirtualMove(testPieces, m);
+                    let e = minimax(ns, depth - 1, alpha, beta, false);
+                    maxE = Math.max(maxE, e);
+                    alpha = Math.max(alpha, e);
+                    if (beta <= alpha) break;
+                }
+                return maxE;
+            } else {
+                let minE = Infinity;
+                for (let m of moves) {
+                    let ns = applyVirtualMove(testPieces, m);
+                    let e = minimax(ns, depth - 1, alpha, beta, true);
+                    minE = Math.min(minE, e);
+                    beta = Math.min(beta, e);
+                    if (beta <= alpha) break;
+                }
+                return minE;
+            }
+        }
+        function quiesceForEval(testPieces, alpha, beta, isMaximizing, qDepth = 0) {
+            let rKing = testPieces.find(k => k.color === 'red' && pieceRules[k.type] && pieceRules[k.type].isKing);
+            let bKing = testPieces.find(k => k.color === 'black' && pieceRules[k.type] && pieceRules[k.type].isKing);
+            if (!rKing) return 10000;
+            if (!bKing) return -10000;
+            let stand_pat = evaluateVirtualBoard(testPieces);
+            if (qDepth > 3) return stand_pat;
+            if (isMaximizing) {
+                if (stand_pat >= beta) return beta;
+                if (alpha < stand_pat) alpha = stand_pat;
+            } else {
+                if (stand_pat <= alpha) return alpha;
+                if (beta > stand_pat) beta = stand_pat;
+            }
+            let color = isMaximizing ? 'black' : 'red';
+            let myPieces = testPieces.filter(p => p.color === color);
+            let moves = [];
+            for (let p of myPieces) {
+                getBaseValidMoves(p, testPieces).forEach(m => {
+                    let vics = getPathVictims(p, m.tx, m.ty, testPieces);
+                    if (vics.length > 0) {
+                        moves.push({ id: p.id, tx: m.tx, ty: m.ty, victims: vics.map(v => v.id), capScore: vics.length });
+                    }
+                });
+            }
+            if (moves.length === 0) return stand_pat;
+            moves.sort((a, b) => b.capScore - a.capScore);
+            if (isMaximizing) {
+                for (let m of moves) {
+                    let score = quiesceForEval(applyVirtualMove(testPieces, m), alpha, beta, false, qDepth + 1);
+                    if (score > alpha) alpha = score;
+                    if (alpha >= beta) break;
+                }
+                return alpha;
+            } else {
+                for (let m of moves) {
+                    let score = quiesceForEval(applyVirtualMove(testPieces, m), alpha, beta, true, qDepth + 1);
+                    if (score < beta) beta = score;
+                    if (beta <= alpha) break;
+                }
+                return beta;
+            }
+        }
+        async function updateEvaluation() { return; }
+        function applyEvalColors(container, score) {
+            if (score > 0.2) {
+                container.style.backgroundColor = '#c62828';
+                container.style.borderColor = '#ff8a80';
+            } else if (score < -0.2) {
+                container.style.backgroundColor = '#1a1a1a';
+                container.style.borderColor = '#777';
+            } else {
+                container.style.backgroundColor = '#555';
+                container.style.borderColor = '#ccc';
+            }
+        }
+        async function makeAIMove() {
+            let aiPieces = activePieces.filter(p => p.color === 'black');
+            let allMoves = [];
+            for (let p of aiPieces) {
+                getValidMoves(p, activePieces, false).forEach(m => {
+                    let vics = m.comboVictims || getPathVictims(p, m.tx, m.ty, activePieces);
+                    let isKingTarget = vics.some(v => pieceRules[v.type] && pieceRules[v.type].isKing);
+                    allMoves.push({
+                        id: p.id, tx: m.tx, ty: m.ty,
+                        victims: vics.map(v => v.id),
+                        captureValue: isKingTarget ? 999 : vics.length,
+                        comboVictims: m.comboVictims
+                    });
+                });
+            }
+            if (allMoves.length === 0) {
+                setTimeout(() => { showGameOver('red'); }, 300);
+                return;
+            }
+            allMoves.sort((a, b) => b.captureValue - a.captureValue);
+            let bestScore = -Infinity; let bestMove = null;
+            for (let m of allMoves) {
+                let simState = applyVirtualMove(activePieces, m);
+                if (!simState.find(k => k.color === 'black' && pieceRules[k.type] && pieceRules[k.type].isKing)) continue;
+                let score = minimax(simState, 3, -Infinity, Infinity, false) + (Math.random() * 0.2);
+                if (score > bestScore) { bestScore = score; bestMove = m; }
+                await new Promise(r => setTimeout(r, 0));
+            }
+            if (!bestMove) bestMove = allMoves[0];
+            let bp = activePieces.find(p => p.id === bestMove.id);
+            if (bp) executeMove(bp, bestMove.tx, bestMove.ty, bestMove.comboVictims);
+        }
+        function applyVirtualMove(testPieces, mDesc) { let ns = testPieces.map(p => ({ ...p })); let piece = ns.find(p => p.id === mDesc.id); if (!piece) return ns; piece.x = mDesc.tx; piece.y = mDesc.ty; return ns.filter(p => !mDesc.victims.includes(p.id)); }
+        function exportCode() {
+            let cr = {};
+            for (let k in pieceRules) {
+                let r = pieceRules[k];
+                cr[k] = Array.of(
+                    r.name,
+                    r.isKing ? 1 : 0,
+                    r.captureIndex || 0,
+                    r.canPierceCapture ? 1 : 0,
+                    r.moves.map(m => m.dx + "," + m.dy + "," + (m.type === 'slide' ? 1 : 0)).join('|'),
+                    r.promote.enabled ? 1 : 0,
+                    r.promote.row,
+                    r.promote.onCapture ? 1 : 0,
+                    (r.promote.targets && r.promote.targets.length > 0) ? r.promote.targets.join('/') : '',
+                    r.combo.steps,
+                    r.canJump ? 1 : 0,
+                    (r.combo && r.combo.stopOnCapture) ? 1 : 0
+                );
+            }
+            let cs = savedSetup.map(p => p.x + "," + p.y + "," + p.type + "," + (p.color === 'red' ? 1 : 0)).join('|');
+            let data = { c: COLS, r: ROWS, rl: cr, st: cs, v: Array.of(Math.round(bScale * 100), Math.round(bTx), Math.round(bTy)) };
+            let binStr = ''; let bytes = new TextEncoder().encode(JSON.stringify(data));
+            for (let i = 0; i < bytes.length; i++) binStr += String.fromCharCode(bytes[i]);
+            let code = "DIYXQ3-" + btoa(binStr);
+            const copyToClipboard = async (text) => {
+                try {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        await navigator.clipboard.writeText(text);
+                        alert(`🎉 神秘代码已静默复制到剪贴板！(长度: ${text.length})\n你可以直接去粘贴了！`);
+                        return;
+                    }
+                    throw new Error("无现代API权限");
+                } catch (err) {
+                    let textArea = document.createElement("textarea");
+                    textArea.value = text;
+                    textArea.style.position = "fixed";
+                    textArea.style.opacity = "0";
+                    textArea.style.left = "-9999px";
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    try {
+                        let successful = document.execCommand('copy');
+                        if (successful) {
+                            alert(`🎉 神秘代码已静默复制到剪贴板！(长度: ${text.length})\n你可以直接去粘贴了！`);
+                        } else {
+                            prompt("⚠️ 浏览器安全限制，请手动全选复制：", text);
+                        }
+                    } catch (e) {
+                        prompt("⚠️ 浏览器安全限制，请手动全选复制：", text);
+                    }
+                    document.body.removeChild(textArea);
+                }
+            };
+            copyToClipboard(code);
+        }
+        function importCode() {
+            let code = prompt("📥 请输入【神秘代码】:");
+            if (!code) return;
+            code = code.trim().replace(/\s+/g, '');
+            try {
+                let data;
+                if (code.startsWith("DIYXQ3-")) {
+                    let binStr = atob(code.substring(7));
+                    let bytes = new Uint8Array(binStr.length);
+                    for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+                    data = JSON.parse(new TextDecoder().decode(bytes));
+                    COLS = data.c; ROWS = data.r; pieceRules = {};
+                    for (let k in data.rl) {
+                        let d = data.rl[k];
+                        if (typeof d === 'string') d = d.split(',');
+                        if (!Array.isArray(d)) continue;
+                        let arr = Array.from(d);
+                        let pName = arr.shift() || "?";
+                        let pIsKing = !!arr.shift();
+                        let rawCapIdx = arr.shift();
+                        let pCapIdx = Array.isArray(rawCapIdx) ? rawCapIdx : (parseInt(rawCapIdx) || 0);
+                        let pPierce = !!arr.shift();
+                        let pMovesStr = arr.shift();
+                        let pPromoEn = !!arr.shift();
+                        let pPromoRow = parseInt(arr.shift()) || 0;
+                        let pPromoCap = !!arr.shift();
+                        let pTargetsStr = arr.shift();
+                        let pCombo = arr.shift();
+                        let pJump = !!arr.shift();
+                        let pStopCap = !!arr.shift();
+                        let moves = (pMovesStr && typeof pMovesStr === 'string') ? pMovesStr.split('|').map(ms => {
+                            let pts = ms.split(',');
+                            let ptsDx = pts.shift();
+                            let ptsDy = pts.shift();
+                            let ptsType = pts.shift();
+                            return { dx: parseInt(ptsDx), dy: parseInt(ptsDy), type: ptsType === '1' ? 'slide' : 'step' };
+                        }) : [];
+                        if (d.length <= 10 && pCapIdx === 0 && moves.some(m => m.type === 'step')) pCapIdx = 1;
+                        let pTargets = (pTargetsStr && typeof pTargetsStr === 'string') ? pTargetsStr.split('/').filter(s => s) : Array.of();
+                        pieceRules[k] = {
+                            ...createDefaultRuleProps(),
+                            name: String(pName),
+                            isKing: pIsKing,
+                            captureIndex: pCapIdx,
+                            canPierceCapture: pPierce,
+                            moves: moves,
+                            promote: { enabled: pPromoEn, row: pPromoRow, onCapture: pPromoCap, targets: pTargets },
+                            combo: { steps: pCombo ? Math.max(1, parseInt(pCombo)) : 1, stopOnCapture: pStopCap },
+                            canJump: pJump
+                        };
+                    }
+                } else if (code.startsWith("DIYXQ2-")) {
+                    let binStr = atob(code.substring(7));
+                    let bytes = new Uint8Array(binStr.length);
+                    for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+                    data = JSON.parse(new TextDecoder().decode(bytes));
+                    COLS = data.c; ROWS = data.r; pieceRules = {};
+                    for (let k in data.rl) {
+                        let d = data.rl[k];
+                        if (typeof d === 'string') d = d.split(',');
+                        if (!Array.isArray(d)) continue;
+                        let arr = Array.from(d);
+                        let pName = arr.shift() || "?";
+                        let pIsKing = !!arr.shift();
+                        let pCapIdxRaw = arr.shift();
+                        let pCapIdxRaw2 = arr.shift();
+                        let pPierce = !!arr.shift();
+                        let pMovesStr = arr.shift();
+                        let moves = (pMovesStr && typeof pMovesStr === 'string') ? pMovesStr.split('|').map(ms => {
+                            let pts = ms.split(',');
+                            let ptsDx = pts.shift();
+                            let ptsDy = pts.shift();
+                            let ptsType = pts.shift();
+                            return { dx: parseInt(ptsDx), dy: parseInt(ptsDy), type: ptsType === '1' ? 'slide' : 'step' };
+                        }) : [];
+                        let idx = pCapIdxRaw2 ? 2 : (pCapIdxRaw ? 1 : 0);
+                        if (idx === 0 && moves.some(m => m.type === 'step')) idx = 1;
+                        pieceRules[k] = { ...createDefaultRuleProps(), name: String(pName), isKing: pIsKing, captureIndex: idx, canPierceCapture: pPierce, moves: moves };
+                    }
+                } else if (code.startsWith("DIYXQ-")) {
+                    data = JSON.parse(decodeURIComponent(atob(code.substring(6))));
+                    COLS = data.cols || 9; ROWS = data.rows || 10; pieceRules = data.rules;
+                    for (let k in pieceRules) {
+                        let idx = pieceRules[k].canJumpCapture ? 2 : (pieceRules[k].canSlideCapture ? 1 : 0);
+                        if (idx === 0 && pieceRules[k].moves.some(m => m.type === 'step')) idx = 1;
+                        pieceRules[k] = { ...createDefaultRuleProps(), ...pieceRules[k], captureIndex: idx };
+                    }
+                } else { throw new Error("代码格式不被识别"); }
+                savedSetup = (data.st && typeof data.st === 'string') ? data.st.split('|').map(ss => {
+                    let ssArr = ss.split(',');
+                    let pX = parseInt(ssArr.shift());
+                    let pY = parseInt(ssArr.shift());
+                    let pType = ssArr.shift();
+                    let pColor = ssArr.shift() === '1' ? 'red' : 'black';
+                    return { x: pX, y: pY, type: pType, color: pColor };
+                }) : (data.setup || Array.of());
+                if (data.v) {
+                    let vArr = Array.from(data.v);
+                    bScale = vArr.shift() / 100;
+                    bTx = vArr.shift();
+                    bTy = vArr.shift();
+                    savedScale = bScale;
+                }
+                else if (data.view) { bScale = data.view.scale || 1; bTx = data.view.tx || 0; bTy = data.view.ty || 0; savedScale = bScale; }
+                else resetView();
+                document.getElementById('board-cols').value = COLS;
+                document.getElementById('board-rows').value = ROWS;
+                bWrapper.style.transform = `translate(${bTx}px, ${bTy}px) scale(${bScale})`;
+                clearBoard();
+                updateBoardSize(COLS, ROWS, true);
+                populateRuleSelector();
+                renderLayoutButtons();
+                resetBoard();
+                alert("✨ 导入成功！");
+                setMode('play');
+                toggleMenu(false);
+            } catch (e) {
+                alert("❌ 代码格式错误或被截断！\n详情: " + e.message);
+                console.error(e);
+            }
+        }
+        function updateStatus(isCheck) { const el = document.getElementById('game-status-float'); if (currentCombo) { el.innerText = `🪢 连击中... (剩余 ${currentCombo.stepsLeft} 步)`; el.style.color = '#2196f3'; el.classList.add('check-warning'); return; } const text = currentTurn === 'red' ? '🔴 红方回合' : '⚫ 黑方回合'; el.innerText = text + (isCheck ? ' ⚠️将军!' : ''); el.style.color = currentTurn === 'red' ? '#ff5252' : '#aaa'; if (isCheck) el.classList.add('check-warning'); else el.classList.remove('check-warning'); }
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-tabs button').forEach(b => b.classList.remove('active'));
+            document.getElementById(`btn-mode-${mode}`).classList.add('active');
+            ['play', 'layout', 'rules'].forEach(m => document.getElementById(`panel-${m}`).style.display = mode === m ? 'block' : 'none');
+            selectedId = null; renderPieces(); renderDots();
+            if (mode === 'rules') setTimeout(centerGeneEditor, 50);
+        }
+        function renderLayoutButtons() { const rCont = document.getElementById('layout-red-btns'); const bCont = document.getElementById('layout-black-btns'); rCont.innerHTML = ''; bCont.innerHTML = ''; for (let key in pieceRules) { const rule = pieceRules[key]; const btnR = document.createElement('button'); btnR.className = 'tool-btn'; btnR.innerText = `🔴${rule.name}`; btnR.onclick = () => selectSetupPiece('red', key); rCont.appendChild(btnR); const btnB = document.createElement('button'); btnB.className = 'tool-btn'; btnB.innerText = `⚫${rule.name}`; btnB.onclick = () => selectSetupPiece('black', key); bCont.appendChild(btnB); } }
+        function selectSetupPiece(color, type) { setupTool = { color, type: type || 'eraser' }; document.getElementById('setup-preview').innerText = color ? `当前持有: ${color === 'red' ? '🔴' : '⚫'} ${pieceRules[type].name}` : "当前持有: 🗑️ 橡皮擦"; }
+        function saveCurrentLayout() {
+            savedSetup = activePieces.map(p => ({ x: p.x, y: p.y, type: p.type, color: p.color }));
+            savedScale = bScale;
+            alert('🎉 当前盘面与视野已保存！\n下次点击【重置游戏】会恢复阵容，点击【视角回正】会恢复到你刚才设定的缩放大小。');
+        }
+        function createNewPiece() { const id = 'U_' + Date.now(); pieceRules[id] = { name: '新', isKing: false, canPierceCapture: false, moves: [], ...createDefaultRuleProps() }; populateRuleSelector(); renderLayoutButtons(); document.getElementById('rule-selector').value = id; loadRuleToEditor(); }
+        function deleteCurrentPiece() {
+            const sel = document.getElementById('rule-selector').value;
+            if (Object.keys(pieceRules).length <= 1) return alert("❌ 至少保留一个兵种！");
+            if (confirm(`确定要彻底毁灭 [${pieceRules[sel].name}] 吗？\n注意：这会把全盘所有的 ${pieceRules[sel].name} 一并从虚空中抹除。`)) {
+                delete pieceRules[sel];
+                activePieces.filter(p => p.type === sel).forEach(p => { p.el.style.display = 'none'; p.el.remove(); });
+                activePieces = activePieces.filter(p => p.type !== sel);
+                savedSetup = savedSetup.filter(p => p.type !== sel);
+                moveHistory = moveHistory.filter(m => m.pieceId && activePieces.find(ap => ap.id === m.pieceId));
+                populateRuleSelector();
+                renderLayoutButtons();
+            }
+        }
+        let isDragging = false; let dragTargetState = null; let editorListenersSet = false;
+        function getCellState(dx, dy) { const sel = document.getElementById('rule-selector'); if (!sel || !sel.value) return 'empty'; const m = pieceRules[sel.value].moves.find(m => m.dx === dx && m.dy === dy); return m ? m.type : 'empty'; }
+        function autoZoomEditor() {
+            const referenceCells = 9;
+            let targetScale = 1;
+            if (referenceCells * 38 > 240) targetScale = 240 / (referenceCells * 38);
+            targetScale = Math.max(0.2, Math.min(targetScale, 2)).toFixed(2);
+            document.getElementById('gene-zoom').value = targetScale;
+            updateGeneZoom();
+            setTimeout(centerGeneEditor, 50);
+        }
+        function initMoveEditor() {
+            const ed_w = 2 * parseInt(COLS) - 1;
+            const ed_h = 2 * parseInt(ROWS) - 1;
+            const container = document.getElementById('move-editor');
+            container.innerHTML = ''; container.style.gridTemplateColumns = `repeat(${ed_w}, var(--gene-cell))`; container.style.gridTemplateRows = `repeat(${ed_h}, var(--gene-cell))`;
+            const halfW = Math.floor(ed_w / 2); const halfH = Math.floor(ed_h / 2);
+            for (let y = -halfH; y <= halfH; y++) {
+                for (let x = -halfW; x <= halfW; x++) {
+                    const div = document.createElement('div'); div.className = 'm-cell';
+                    if (x === 0 && y === 0) div.className += ' center'; div.dataset.dx = x; div.dataset.dy = y;
+                    div.addEventListener('mousedown', (e) => { e.preventDefault(); handleDragStart(x, y); });
+                    div.addEventListener('mouseenter', () => handleDragEnter(x, y)); container.appendChild(div);
+                }
+            }
+            autoZoomEditor();
+        }
+        function setupEditorListeners() { if (editorListenersSet) return; const container = document.getElementById('move-editor'); document.addEventListener('mouseup', () => isDragging = false); document.addEventListener('touchend', () => isDragging = false); container.addEventListener('touchstart', (e) => { const touch = e.touches[0]; const el = document.elementFromPoint(touch.clientX, touch.clientY); if (el && el.classList.contains('m-cell') && !el.classList.contains('center')) handleDragStart(parseInt(el.dataset.dx), parseInt(el.dataset.dy)); }, { passive: false }); container.addEventListener('touchmove', (e) => { if (!isDragging) return; e.preventDefault(); const touch = e.touches[0]; const el = document.elementFromPoint(touch.clientX, touch.clientY); if (el && el.classList.contains('m-cell') && !el.classList.contains('center')) handleDragEnter(parseInt(el.dataset.dx), parseInt(el.dataset.dy)); }, { passive: false }); editorListenersSet = true; }
+        function updateGeneZoom() { const z = document.getElementById('gene-zoom').value; document.documentElement.style.setProperty('--gene-cell', `${38 * z}px`); }
+        function centerGeneEditor() {
+            const wrap = document.getElementById('gene-wrap');
+            if (wrap.clientWidth > 0) { wrap.scrollLeft = (wrap.scrollWidth - wrap.clientWidth) / 2; wrap.scrollTop = (wrap.scrollHeight - wrap.clientHeight) / 2; }
+        }
+        function handleDragStart(dx, dy) { if (dx === 0 && dy === 0) return; isDragging = true; const curr = getCellState(dx, dy); if (curr === 'empty') dragTargetState = 'step'; else if (curr === 'step') dragTargetState = 'slide'; else dragTargetState = 'empty'; setRuleMove(dx, dy, dragTargetState); }
+        function handleDragEnter(dx, dy) { if (!isDragging || !dragTargetState || (dx === 0 && dy === 0)) return; setRuleMove(dx, dy, dragTargetState); }
+        function setRuleMove(dx, dy, targetState) { const rule = pieceRules[document.getElementById('rule-selector').value]; const idx = rule.moves.findIndex(m => m.dx === dx && m.dy === dy); let changed = false; if (targetState === 'empty') { if (idx !== -1) { rule.moves.splice(idx, 1); changed = true; } } else { if (idx === -1) { rule.moves.push({ dx, dy, type: targetState }); changed = true; } else if (rule.moves[idx].type !== targetState) { rule.moves[idx].type = targetState; changed = true; } } if (changed) { const cell = document.querySelector(`.m-cell[data-dx="${dx}"][data-dy="${dy}"]`); if (cell) cell.className = 'm-cell' + (targetState === 'empty' ? '' : ` ${targetState}`); renderDots(); } }
+        function populateRuleSelector() { const sel = document.getElementById('rule-selector'); sel.innerHTML = ''; for (let key in pieceRules) { const opt = document.createElement('option'); opt.value = key; opt.innerText = `${pieceRules[key].name}`; sel.appendChild(opt); } loadRuleToEditor(); }
+        function loadRuleToEditor() {
+            const sel = document.getElementById('rule-selector'); if (!sel || !sel.value) return; const rule = pieceRules[sel.value]; document.getElementById('edit-name').value = rule.name; document.getElementById('edit-isking').checked = rule.isKing; document.getElementById('edit-jump-cap').checked = rule.canJump || false; document.getElementById('edit-pierce-cap').checked = rule.canPierceCapture || false; document.getElementById('edit-capture-idx').value = Array.isArray(rule.captureIndex) ? rule.captureIndex.join(' ') : (rule.captureIndex !== undefined ? rule.captureIndex : 1); document.getElementById('edit-promo-en').checked = rule.promote.enabled; document.getElementById('edit-promo-row').value = rule.promote.row; document.getElementById('edit-promo-cap').checked = rule.promote.onCapture;
+            if (typeof updatePromoSelectedText === 'function') updatePromoSelectedText();
+            document.getElementById('edit-combo-steps').value = rule.combo.steps || 1; document.getElementById('edit-combo-stop').checked = rule.combo.stopOnCapture || false; document.querySelectorAll('.m-cell').forEach(c => { if (c.classList.contains('center')) { c.innerText = rule.name; applyTextScale(c, rule.name); } else { c.className = 'm-cell'; const m = rule.moves.find(mv => mv.dx == c.dataset.dx && mv.dy == c.dataset.dy); if (m) c.classList.add(m.type); else c.innerText = ''; } }); centerGeneEditor();
+        }
+        function saveNameChange() { const newName = document.getElementById('edit-name').value || '?'; pieceRules[document.getElementById('rule-selector').value].name = newName; renderPieces(); renderLayoutButtons(); const sel = document.getElementById('rule-selector'); sel.options[sel.selectedIndex].text = newName; const centerCell = document.querySelector('.m-cell.center'); if (centerCell) { centerCell.innerText = newName; applyTextScale(centerCell, newName); } }
+        function saveAbilities() {
+            const rule = pieceRules[document.getElementById('rule-selector').value]; rule.isKing = document.getElementById('edit-isking').checked; rule.canJump = document.getElementById('edit-jump-cap').checked; rule.canPierceCapture = document.getElementById('edit-pierce-cap').checked; let capStr = document.getElementById('edit-capture-idx').value.trim();
+            let capArr = capStr.split(/\s+/).map(Number).filter(n => !isNaN(n));
+            rule.captureIndex = capArr.length > 1 ? capArr : (capArr.length === 1 ? capArr[0] : 0); rule.promote.enabled = document.getElementById('edit-promo-en').checked; rule.promote.row = parseInt(document.getElementById('edit-promo-row').value) || 0; rule.promote.onCapture = document.getElementById('edit-promo-cap').checked;
+            if (typeof updatePromoSelectedText === 'function') updatePromoSelectedText();
+            rule.combo.steps = parseInt(document.getElementById('edit-combo-steps').value) || 1; rule.combo.stopOnCapture = document.getElementById('edit-combo-stop').checked; renderDots();
+        }
+        function openPromoDropdown() {
+            document.getElementById('promo-dropdown').style.display = 'block';
+            renderPromoDropdown('');
+            setTimeout(() => document.addEventListener('click', closePromoDropdownOutside), 10);
+        }
+        function closePromoDropdownOutside(e) {
+            if (!e.target.closest('#promo-dropdown') && e.target.id !== 'edit-promo-search') {
+                document.getElementById('promo-dropdown').style.display = 'none';
+                document.removeEventListener('click', closePromoDropdownOutside);
+                document.getElementById('edit-promo-search').value = '';
+            }
+        }
+        function filterPromoDropdown() {
+            renderPromoDropdown(document.getElementById('edit-promo-search').value.toLowerCase());
+        }
+        function renderPromoDropdown(filterText) {
+            const dropdown = document.getElementById('promo-dropdown');
+            dropdown.innerHTML = '';
+            const selRuleId = document.getElementById('rule-selector').value;
+            if (!selRuleId || !pieceRules[selRuleId]) return;
+            const currentRule = pieceRules[selRuleId];
+            let availableKeys = Object.keys(pieceRules).filter(k => k !== selRuleId && pieceRules[k].isKing === currentRule.isKing);
+            let hasMatch = false;
+            availableKeys.forEach(k => {
+                let pName = pieceRules[k].name;
+                if (filterText && !pName.toLowerCase().includes(filterText)) return;
+                hasMatch = true;
+                let isChecked = currentRule.promote.targets && currentRule.promote.targets.includes(k);
+                let item = document.createElement('div');
+                item.style.padding = '6px 10px';
+                item.style.cursor = 'pointer';
+                item.style.borderBottom = '1px solid #444';
+                item.innerHTML = `<input type="checkbox" style="margin-right:8px; pointer-events:none;" ${isChecked ? 'checked' : ''}><span style="color:${pieceRules[k].isKing ? '#e91e63' : '#fff'};">${pName}</span>`;
+                item.onclick = () => {
+                    if (!currentRule.promote.targets) currentRule.promote.targets = [];
+                    if (isChecked) currentRule.promote.targets = currentRule.promote.targets.filter(t => t !== k);
+                    else currentRule.promote.targets.push(k);
+                    renderPromoDropdown(document.getElementById('edit-promo-search').value.toLowerCase());
+                    updatePromoSelectedText();
+                };
+                dropdown.appendChild(item);
+            });
+            if (!hasMatch) dropdown.innerHTML = '<div style="padding:10px;color:#888;text-align:center;">无匹配兵种</div>';
+        }
+        function updatePromoSelectedText() {
+            const selRuleId = document.getElementById('rule-selector').value;
+            if (!selRuleId || !pieceRules[selRuleId]) return;
+            const currentRule = pieceRules[selRuleId];
+            const textEl = document.getElementById('promo-selected-text');
+            if (currentRule.promote.targets && currentRule.promote.targets.length > 0) {
+                let validTargets = currentRule.promote.targets.filter(k => pieceRules[k] && pieceRules[k].isKing === currentRule.isKing);
+                if (validTargets.length !== currentRule.promote.targets.length) {
+                    currentRule.promote.targets = validTargets;
+                }
+                if (validTargets.length > 0) {
+                    textEl.innerText = '已选: ' + validTargets.map(k => pieceRules[k].name).join(', ');
+                    textEl.style.color = '#ffb74d';
+                    return;
+                }
+            }
+            textEl.innerText = `当前未指定 (默认变所有${currentRule.isKing ? '主帅' : '非主帅'})`;
+            textEl.style.color = '#aaa';
+        }
+        function showGameOver(winnerColor) {
+            const overlay = document.getElementById('game-over-overlay');
+            const title = document.getElementById('go-title');
+            const modal = document.getElementById('go-modal');
+            if (winnerColor === 'red') {
+                title.innerHTML = '🎉 红方胜利！';
+                modal.className = 'go-content win-red';
+            } else {
+                title.innerHTML = '🎉 黑方胜利！';
+                modal.className = 'go-content win-black';
+            }
+            overlay.style.display = 'flex';
+            const container = document.getElementById('confetti-container');
+            container.innerHTML = '';
+            for (let i = 0; i < 50; i++) {
+                let c = document.createElement('div');
+                c.className = 'confetti';
+                c.style.left = '50%'; c.style.top = '50%';
+                c.style.backgroundColor = Math.random() > 0.5 ? '#ff5252' : '#ffeb3b';
+                c.style.setProperty('--tx', (Math.random() - 0.5) * 600 + 'px');
+                c.style.setProperty('--ty', (Math.random() - 0.5) * 600 + 'px');
+                c.style.animationDelay = Math.random() * 0.15 + 's';
+                container.appendChild(c);
+            }
+        }
+        function hideGameOver() {
+            document.getElementById('game-over-overlay').style.display = 'none';
+        }
+        init();
+    </script>
+</body>
+
+</html>
