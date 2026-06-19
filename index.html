@@ -1585,13 +1585,20 @@
             const r = pieceRules[type]; if (!r) return 0;
             if (r.isKing) return 10000;
             let val = 0;
-            r.moves.forEach(m => val += (m.type === 'slide' ? 25 : 8));
+            r.moves.forEach(m => {
+                if (m.type === 'slide') {
+                    val += (COLS + ROWS) * 1.6;
+                } else {
+                    let dist = Math.hypot(m.dx, m.dy) || 1;
+                    val += 24 / dist;
+                }
+            });
             let caps = (Array.isArray(r.captureIndex) ? r.captureIndex : [r.captureIndex || 0]).map(Number);
             if (caps.includes(1)) val += 30;
             if (caps.includes(2)) val += 15;
-            if (caps.length > 1) val += (caps.length - 1) * 25;
-            if (r.canPierceCapture) val += 50;
-            if (r.combo && r.combo.steps > 1) val += (r.combo.steps - 1) * 30;
+            if (caps.length > 1) val += (caps.length - 1) * 30;
+            if (r.canPierceCapture) val += 35;
+            if (r.combo && r.combo.steps > 1) val += (r.combo.steps - 1) * 160;
             return val;
         }
         function evaluateVirtualBoard(testPieces) {
@@ -1735,6 +1742,8 @@
         }
         async function makeAIMove() {
             if (currentTurn !== 'black') return;
+            await new Promise(r => setTimeout(r, 50));
+            if (currentTurn !== 'black') return;
             let aiPieces = activePieces.filter(p => p.color === 'black');
             let allMoves = [];
             for (let p of aiPieces) {
@@ -1767,6 +1776,8 @@
             if (currentTurn !== 'black') return;
             if (!bestMove) bestMove = allMoves[0];
             let bp = activePieces.find(p => p.id === bestMove.id);
+            await new Promise(r => setTimeout(r, 60));
+            if (currentTurn !== 'black') return;
             if (bp && bp.color === 'black') executeMove(bp, bestMove.tx, bestMove.ty, bestMove.comboVictims);
         }
         function applyVirtualMove(testPieces, mDesc) { let ns = testPieces.map(p => ({ ...p })); let piece = ns.find(p => p.id === mDesc.id); if (!piece) return ns; piece.x = mDesc.tx; piece.y = mDesc.ty; return ns.filter(p => !mDesc.victims.includes(p.id)); }
