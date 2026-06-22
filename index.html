@@ -1586,21 +1586,48 @@
         function getPieceValue(type) {
             const r = pieceRules[type]; if (!r) return 0;
             if (r.isKing) return 10000;
-            let val = 0;
+            let val = 0; let hasStraightSlide = false; let hasDiagonalSlide = false; let hasStep = false;
+            let baseSquares = 0;
             r.moves.forEach(m => {
                 if (m.type === 'slide') {
-                    val += (COLS + ROWS) * 1.6;
+                    if (m.dx === 0 || m.dy === 0) {
+                        val += 4.6875 * (COLS + ROWS); hasStraightSlide = true;
+                        baseSquares += (COLS + ROWS - 2) / 4;
+                    } else {
+                        val += 3.125 * (COLS + ROWS); hasDiagonalSlide = true;
+                        baseSquares += (COLS + ROWS - 2) / 6;
+                    }
                 } else {
                     let dist = Math.hypot(m.dx, m.dy) || 1;
-                    val += 24 / dist;
+                    val += 34 / Math.pow(dist, 0.75); hasStep = true;
+                    baseSquares += 1;
                 }
             });
+            if (hasStraightSlide && hasDiagonalSlide) val *= 1.2;
             let caps = (Array.isArray(r.captureIndex) ? r.captureIndex : [r.captureIndex || 0]).map(Number);
-            if (caps.includes(1)) val += 30;
-            if (caps.includes(2)) val += 15;
-            if (caps.length > 1) val += (caps.length - 1) * 30;
-            if (r.canPierceCapture) val += 35;
-            if (r.combo && r.combo.steps > 1) val += (r.combo.steps - 1) * 160;
+            let validCaps = caps.filter(n => n > 0);
+            if (validCaps.length > 0) {
+                let minCap = Math.min(...validCaps);
+                let divisor = minCap > 1 ? minCap * ((COLS + ROWS - 4) / 12) : 1;
+                val /= divisor;
+            } else {
+                val *= 0.2;
+            }
+            if (validCaps.length > 1) val *= 1.4;
+            if (r.canPierceCapture) val *= 1.5;
+            if (r.combo && r.combo.steps > 1 && baseSquares > 0) {
+                let comboSquares = baseSquares;
+                if (hasStraightSlide) {
+                    comboSquares = COLS * ROWS - 1;
+                } else if (hasDiagonalSlide) {
+                    comboSquares = (COLS * ROWS) / 2;
+                } else if (hasStep) {
+                    comboSquares = Math.min(COLS * ROWS - 1, baseSquares * r.combo.steps * r.combo.steps);
+                }
+                let multiplier = comboSquares / baseSquares;
+                if (r.combo.stopOnCapture) multiplier = 1 + (multiplier - 1) * 0.4;
+                val *= multiplier;
+            }
             return val;
         }
         function evaluateVirtualBoard(testPieces) {
