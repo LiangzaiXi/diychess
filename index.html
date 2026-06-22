@@ -1632,8 +1632,7 @@
         }
         function evaluateVirtualBoard(testPieces) {
             let score = 0; let centerX = COLS / 2 - 0.5;
-            let pieceValCache = {};
-            let maxPromoValCache = {};
+            let pieceValCache = {}; let maxPromoValCache = {};
             for (let k in pieceRules) {
                 pieceValCache[k] = getPieceValue(k);
                 if (pieceRules[k].promote && pieceRules[k].promote.enabled) {
@@ -1647,21 +1646,27 @@
                 }
             }
             for (let p of testPieces) {
-                let rule = pieceRules[p.type];
-                if (!rule) continue;
+                let rule = pieceRules[p.type]; if (!rule) continue;
                 let v = pieceValCache[p.type];
                 let advance = p.color === 'black' ? p.y : (ROWS - 1 - p.y);
                 let posBonus = (10 - Math.abs(p.x - centerX)) * 1.5 + advance * 2;
                 let promoBonus = 0;
                 if (rule.promote && rule.promote.enabled) {
-                    let targetRow = rule.promote.row;
-                    let distToPromo = p.color === 'black' ? (ROWS - 1 - targetRow - p.y) : (p.y - targetRow);
+                    let distToPromo = p.color === 'black' ? ((ROWS - 1 - rule.promote.row) - p.y) : (p.y - rule.promote.row);
                     if (distToPromo < 0) distToPromo = 0;
-                    let targetMaxVal = maxPromoValCache[p.type] || v;
-                    if (targetMaxVal > v) {
-                        let dangerDistance = 4;
-                        if (distToPromo <= dangerDistance) promoBonus = (targetMaxVal - v) * (1 - distToPromo / (dangerDistance + 1));
+                    if (rule.promote.onCapture) {
+                        let minEnemyDist = Infinity;
+                        for (let enemy of testPieces) {
+                            if (enemy.color !== p.color) {
+                                let d = Math.abs(enemy.x - p.x) + Math.abs(enemy.y - p.y);
+                                if (d < minEnemyDist) minEnemyDist = d;
+                            }
+                        }
+                        let estimatedCapDist = isFinite(minEnemyDist) ? Math.max(1, Math.floor(minEnemyDist / 2)) : 99;
+                        if (estimatedCapDist < distToPromo) distToPromo = estimatedCapDist;
                     }
+                    let targetMaxVal = maxPromoValCache[p.type] || v;
+                    if (targetMaxVal > v) promoBonus = (targetMaxVal - v) * Math.pow(0.65, distToPromo);
                 }
                 let total = v + posBonus + promoBonus;
                 if (p.color === 'black') score += total; else score -= total;
