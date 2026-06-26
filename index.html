@@ -1088,6 +1088,7 @@
             'C': { name: '炮', isKing: false, canPierceCapture: false, moves: [{ dx: 0, dy: 1, type: 'slide' }, { dx: 0, dy: -1, type: 'slide' }, { dx: 1, dy: 0, type: 'slide' }, { dx: -1, dy: 0, type: 'slide' }], ...createDefaultRuleProps(), captureIndex: 2 },
             'P': { name: '兵', isKing: false, canPierceCapture: false, moves: [{ dx: 0, dy: -1, type: 'step' }, { dx: 1, dy: 0, type: 'step' }, { dx: -1, dy: 0, type: 'step' }], ...createDefaultRuleProps(), captureIndex: 1 },
         };
+        let GLOBAL_PIECE_VAL_CACHE = {};
         let activePieces = []; let pieceIdCounter = 0; let currentMode = 'play'; let currentTurn = 'red'; let selectedId = null; let setupTool = { color: null, type: null }; let moveHistory = [];
         let pendingPromotionPiece = null;
         let currentCombo = null;
@@ -1188,6 +1189,7 @@
             }
         }
         function updateBoardSize(c, r, skipRuleLoad = false) {
+            GLOBAL_PIECE_VAL_CACHE = {};
             COLS = c || parseInt(document.getElementById('board-cols').value) || 9; ROWS = r || parseInt(document.getElementById('board-rows').value) || 10;
             document.documentElement.style.setProperty('--cols', COLS); document.documentElement.style.setProperty('--rows', ROWS);
             const bg = document.getElementById('grid-bg'); bg.innerHTML = '';
@@ -1592,25 +1594,24 @@
         function isSquareAttacked(x, y, attackerColor, currentPieces) { const attackers = currentPieces.filter(p => p.color === attackerColor); for (let a of attackers) { const moves = getValidMoves(a, currentPieces, false); if (moves.some(m => m.tx === x && m.ty === y)) return true; } return false; }
         function checkIsCheck(turnColor, currentPieces) { const enemyColor = turnColor === 'red' ? 'black' : 'red'; const kings = currentPieces.filter(p => p.color === turnColor && pieceRules[p.type] && pieceRules[p.type].isKing); if (kings.length === 0) return false; for (let k of kings) if (isSquareAttacked(k.x, k.y, enemyColor, currentPieces)) return true; return false; }
         function getPieceValue(type) {
-            const r = pieceRules[type]; if (!r) return 0;
-            if (r.isKing) return Infinity;
+            if (!pieceRules[type]) return 0;
+            if (pieceRules[type].isKing) return Infinity;
+            if (GLOBAL_PIECE_VAL_CACHE[type] !== undefined) return GLOBAL_PIECE_VAL_CACHE[type];
+            const r = pieceRules[type];
             let boardW = COLS - 1; let boardH = ROWS - 1;
+            let boardSize = (COLS + ROWS) / 2;
+            let refSize = 9.5;
+            let sizeScale = boardSize / refSize;
+            let rayDecay = Math.min(0.93, 0.7 + (sizeScale - 1) * 0.16);
             let uniqueBaseMoves = []; let seen = new Set();
-            let slideStr = false, slideDiag = false, stepStr = false, stepDiag = false;
             r.moves.forEach(m => {
                 if (m.dx === 0 && m.dy === 0) return;
-                if (m.dx === 0 || m.dy === 0) {
-                    if (m.type === 'slide') slideStr = true; else stepStr = true;
-                } else {
-                    if (m.type === 'slide') slideDiag = true; else stepDiag = true;
-                }
                 if (m.type === 'slide') {
-                    let maxSteps = 0;
-                    if (m.dx === 0) maxSteps = Math.floor(boardH / Math.abs(m.dy));
-                    else if (m.dy === 0) maxSteps = Math.floor(boardW / Math.abs(m.dx));
-                    else maxSteps = Math.min(Math.floor(boardW / Math.abs(m.dx)), Math.floor(boardH / Math.abs(m.dy)));
+                    let maxSteps = (m.dx === 0) ? Math.floor(boardH / Math.abs(m.dy)) :
+                        (m.dy === 0) ? Math.floor(boardW / Math.abs(m.dx)) :
+                            Math.min(Math.floor(boardW / Math.abs(m.dx)), Math.floor(boardH / Math.abs(m.dy)));
                     for (let k = 1; k <= maxSteps; k++) {
-                        let kdx = m.dx * k; let kdy = m.dy * k; let key = kdx + ',' + kdy;
+                        let kdx = m.dx * k, kdy = m.dy * k, key = kdx + ',' + kdy;
                         if (!seen.has(key)) { seen.add(key); uniqueBaseMoves.push({ dx: kdx, dy: kdy }); }
                     }
                 } else {
@@ -1623,53 +1624,42 @@
             for (let s = 1; s <= steps; s++) {
                 let nextReach = {};
                 for (let key in currentReach) {
-                    let [cx, cy] = key.split(',').map(Number);
-                    let pathsToHere = currentReach[key];
+                    let [cx, cy] = key.split(',').map(Number), paths = currentReach[key];
                     uniqueBaseMoves.forEach(m => {
-                        let nx = cx + m.dx; let ny = cy + m.dy;
+                        let nx = cx + m.dx, ny = cy + m.dy;
                         if (Math.abs(nx) <= boardW && Math.abs(ny) <= boardH) {
                             let nKey = nx + ',' + ny;
-                            nextReach[nKey] = (nextReach[nKey] || 0) + pathsToHere;
+                            nextReach[nKey] = (nextReach[nKey] || 0) + paths;
                         }
                     });
                 }
-                for (let key in nextReach) { allReached[key] = (allReached[key] || 0) + nextReach[key]; }
+                for (let key in nextReach) allReached[key] = (allReached[key] || 0) + nextReach[key];
                 currentReach = nextReach;
             }
             delete allReached["0,0"];
             let totalVal = 0; let stopMult = (r.combo && r.combo.stopOnCapture) ? 0.5 : 1.0;
-            let scale = (COLS + ROWS) / 19;
             for (let key in allReached) {
-                let [x, y] = key.split(',').map(Number);
-                let paths = allReached[key];
-                let dist = Math.abs(x) + Math.abs(y);
+                let [x, y] = key.split(',').map(Number), paths = allReached[key], dist = Math.abs(x) + Math.abs(y);
                 if (dist === 0) continue;
                 let gcdVal = getGCD(Math.abs(x), Math.abs(y));
-                let k = Math.max(1, gcdVal);
-                let normDist = dist / scale;
-                let normK = (k - 1) / scale;
-                let ptVal = 115 / (normDist + 1) * Math.pow(0.7, normK);
+                let ptVal = 115 / (dist + 1) * Math.pow(rayDecay, gcdVal - 1);
                 let pathBonus = 1 + (0.15 * Math.pow(paths - 1, 0.6)) * stopMult;
                 ptVal *= pathBonus;
-                let normInt = (gcdVal - 1) / scale;
-                if (normInt > 0) {
-                    if (r.canPierceCapture) ptVal *= (1 + normInt * 0.3);
-                    else if (r.canJump) ptVal *= (1 + normInt * 0.15);
+                let integerPointsBetween = gcdVal - 1;
+                if (integerPointsBetween > 0) {
+                    if (r.canPierceCapture) ptVal *= (1 + integerPointsBetween * 1.8);
+                    else if (r.canJump) ptVal *= (1 + integerPointsBetween * 0.35);
                 }
                 totalVal += ptVal;
             }
-            if (slideStr && slideDiag) totalVal *= 1.3;
-            else if ((slideStr || stepStr) && (slideDiag || stepDiag)) totalVal *= 1.08;
             let caps = (Array.isArray(r.captureIndex) ? r.captureIndex : [r.captureIndex || 0]).map(Number);
             let validCaps = caps.filter(n => n > 0);
             if (validCaps.length > 0) {
-                let capMult = 0;
-                validCaps.forEach(n => { capMult += 1 / n; });
+                let capMult = 0; validCaps.forEach(n => capMult += 1 / n);
                 totalVal *= capMult;
-            } else {
-                totalVal *= 0.2;
-            }
-            if (steps > 1 && r.combo && r.combo.stopOnCapture) totalVal *= 0.8;
+            } else totalVal *= 0.2;
+            if (steps > 1 && r.combo && r.combo.steps > 1 && r.combo.stopOnCapture) totalVal *= 0.8;
+            GLOBAL_PIECE_VAL_CACHE[type] = totalVal;
             return totalVal;
         }
         function evaluateVirtualBoard(testPieces) {
@@ -1914,6 +1904,7 @@
             copyToClipboard(code);
         }
         function importCode() {
+            GLOBAL_PIECE_VAL_CACHE = {};
             let code = prompt("📥 请输入【神秘代码】:");
             if (!code) return;
             code = code.trim().replace(/\s+/g, '');
@@ -2052,8 +2043,9 @@
             savedScale = bScale;
             alert('🎉 当前盘面与视野已保存！\n下次点击【重置游戏】会恢复阵容，点击【视角回正】会恢复到你刚才设定的缩放大小。');
         }
-        function createNewPiece() { const id = 'U_' + Date.now(); pieceRules[id] = { name: '新', isKing: false, canPierceCapture: false, moves: [], ...createDefaultRuleProps() }; populateRuleSelector(); renderLayoutButtons(); document.getElementById('rule-selector').value = id; loadRuleToEditor(); }
+        function createNewPiece() { GLOBAL_PIECE_VAL_CACHE = {}; const id = 'U_' + Date.now(); pieceRules[id] = { name: '新', isKing: false, canPierceCapture: false, moves: [], ...createDefaultRuleProps() }; populateRuleSelector(); renderLayoutButtons(); document.getElementById('rule-selector').value = id; loadRuleToEditor(); }
         function deleteCurrentPiece() {
+            GLOBAL_PIECE_VAL_CACHE = {};
             const sel = document.getElementById('rule-selector').value;
             if (Object.keys(pieceRules).length <= 1) return alert("❌ 至少保留一个兵种！");
             if (confirm(`确定要彻底毁灭 [${pieceRules[sel].name}] 吗？\n注意：这会把全盘所有的 ${pieceRules[sel].name} 一并从虚空中抹除。`)) {
@@ -2102,6 +2094,7 @@
         function handleDragStart(dx, dy) { if (dx === 0 && dy === 0) return; isDragging = true; const curr = getCellState(dx, dy); if (curr === 'empty') dragTargetState = 'step'; else if (curr === 'step') dragTargetState = 'slide'; else dragTargetState = 'empty'; setRuleMove(dx, dy, dragTargetState); }
         function handleDragEnter(dx, dy) { if (!isDragging || !dragTargetState || (dx === 0 && dy === 0)) return; setRuleMove(dx, dy, dragTargetState); }
         function setRuleMove(dx, dy, targetState) {
+            GLOBAL_PIECE_VAL_CACHE = {};
             const selId = document.getElementById('rule-selector').value; const rule = pieceRules[selId]; const idx = rule.moves.findIndex(m => m.dx === dx && m.dy === dy); let changed = false; if (targetState === 'empty') { if (idx !== -1) { rule.moves.splice(idx, 1); changed = true; } } else { if (idx === -1) { rule.moves.push({ dx, dy, type: targetState }); changed = true; } else if (rule.moves[idx].type !== targetState) { rule.moves[idx].type = targetState; changed = true; } }
             if (changed) {
                 const cell = document.querySelector(`.m-cell[data-dx="${dx}"][data-dy="${dy}"]`); if (cell) cell.className = 'm-cell' + (targetState === 'empty' ? '' : ` ${targetState}`); renderDots();
@@ -2117,6 +2110,7 @@
         }
         function saveNameChange() { const newName = document.getElementById('edit-name').value || '?'; pieceRules[document.getElementById('rule-selector').value].name = newName; renderPieces(); renderLayoutButtons(); const sel = document.getElementById('rule-selector'); sel.options[sel.selectedIndex].text = newName; const centerCell = document.querySelector('.m-cell.center'); if (centerCell) { centerCell.innerText = newName; applyTextScale(centerCell, newName); } }
         function saveAbilities() {
+            GLOBAL_PIECE_VAL_CACHE = {};
             const selId = document.getElementById('rule-selector').value; const rule = pieceRules[selId]; rule.isKing = document.getElementById('edit-isking').checked; rule.canJump = document.getElementById('edit-jump-cap').checked; rule.canPierceCapture = document.getElementById('edit-pierce-cap').checked; let capStr = document.getElementById('edit-capture-idx').value.trim();
             let capArr = capStr.split(/\s+/).map(Number).filter(n => !isNaN(n));
             rule.captureIndex = capArr.length > 1 ? capArr : (capArr.length === 1 ? capArr[0] : 0); rule.promote.enabled = document.getElementById('edit-promo-en').checked; rule.promote.row = parseInt(document.getElementById('edit-promo-row').value) || 0; rule.promote.onCapture = document.getElementById('edit-promo-cap').checked;
